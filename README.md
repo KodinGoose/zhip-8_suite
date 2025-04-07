@@ -1,6 +1,6 @@
 # chip-8 assembler in zig
 
-<p>
+"""
 This is an assemler/de_assembler for chip-8 and schip-8 written in Zig.
 
 The language supports labels with the following syntax:
@@ -63,4 +63,4 @@ loadRegisters rx                  | rrg rx        |  Fx65  | Read the bytes from
 saveRegistersStorage rx           | wrs rx        |  Fx75  | Store the content of the registers r0 to rX into flags storage (outside of the addressable ram) (Not compatible with chip-8 but supported by the interpreter nonetheless)
 loadRegistersStorage rx           | rrs rx        |  Fx85  | Load the registers v0 to vX from flags storage (outside the addressable ram) (Not compatible with chip-8 but supported by the interpreter )
 rawData N N N N                   | raw N N N N   |  NNNN  | Raw data, this can be code not supported by the assembler/de_assembler
-</p>
+"""
