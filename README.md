@@ -20,8 +20,8 @@ Each opcode and number is 4 bits and represented in hexadecimal (In the followin
 N: A 4 bit number (NN for 8 bit and NNN for 12 bit addresses)
 rx, ry: A register (x and y values are 0-15)
 Language                          | Assembly like | Opcode | Description
-----------------------------------+---------------+--------+-------------------------------------------------------------------------<br>
-execute NNN                       | exe NNN       |  0NNN  | Execute an instruction at NNN (The interpreter doesn't support this one)<br>
+----------------------------------+---------------+--------+-------------------------------------------------------------------------
+execute NNN                       | exe NNN       |  0NNN  | Execute an instruction at NNN (The interpreter doesn't support this one)
 clear                             | clr           |  00E0  | Clears the screen
 return                            | ret           |  00EE  | Returns from a subroutine (uses the (presumably) address on the "stack")
 exit                              | ext           |  00FD  | Exit the interpreter (Not chip-8 compatible but supported by the interpreter nonetheless)
