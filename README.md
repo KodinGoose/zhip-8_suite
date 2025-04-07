@@ -1,6 +1,6 @@
 # chip-8 assembler in zig
 
-This is an assemler/de_assembler for chip-8 and schip-8 written in Zig.
+This is an assemler/de_assembler for chip-8 and schip-8 written in Zig (version 0.14.0).
 
 The text below is documentation and may look funky in browser. Download the file to view properly.
 
