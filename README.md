@@ -2,11 +2,9 @@
 
 This is an assemler/de_assembler for chip-8 and schip-8 written in Zig (version 0.14.0).
 
-The text below is documentation and may look funky in browser. Download the file to view properly.
-
-The language supports labels with the following syntax:
-[label_name]: This is for declaring a label, this can be on it's own line or before an opcode
-:[label_name] This is for using an label as an argument for an opcode that asks for an address (Including the chip-8 variant of the "sjp" opcode)
+The language supports labels with the following syntax: 
+[label_name]: This is for declaring a label, this can be on it's own line or before an opcode 
+:[label_name] This is for using an label as an argument for an opcode that asks for an address (Including the chip-8 variant of the "sjp" opcode) 
 
 You can write comments with the following syntax:
 #This is a comment
