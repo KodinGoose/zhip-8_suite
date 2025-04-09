@@ -18,8 +18,22 @@ pub fn translate(allocator: std.mem.Allocator, binary_start_index: u12, assembly
     var line_number: usize = 1;
     var binary_index: u12 = binary_start_index;
     while (code_splt.next()) |line_str| {
+        checkAndGetAlias(allocator, line_str, binary_index, &aliases) catch |err| {
+            if (err == error.Empty_Line) {
+                line_number += 1;
+                continue;
+            }
+            try std.io.getStdOut().writer().print("Error at line {d}: {s}\n", .{ line_number, @errorName(err) });
+        };
+        line_number += 1;
+        binary_index = std.math.add(@TypeOf(binary_index), binary_index, 2) catch return error.LargestBinarySupportedIs4Kilobytes;
+    }
+    code_splt.reset();
+    line_number = 1;
+    binary_index = binary_start_index;
+    while (code_splt.next()) |line_str| {
         var line = Line{};
-        line = translateLine(allocator, line_str, binary_index, &aliases) catch |err| blk: {
+        line = translateLine(line_str, &aliases) catch |err| blk: {
             if (err == error.Empty_Line) {
                 line_number += 1;
                 continue;
@@ -43,12 +57,41 @@ pub fn translate(allocator: std.mem.Allocator, binary_start_index: u12, assembly
     return binary.items;
 }
 
-/// This function returns error.Empty_Line if the line is empty or has a comment before an opcode
+/// This function returns error.Empty_Line if the line is empty or has a comment before an alias or opcode
 /// This error is supposed to be "handled" by ignoring this line
-fn translateLine(
+fn checkAndGetAlias(
     allocator: std.mem.Allocator,
     assembly_line: []const u8,
     binary_index: u12,
+    aliases: *std.StringHashMapUnmanaged(u12),
+) !void {
+    var line_splt = std.mem.splitScalar(u8, assembly_line, ' ');
+
+    while (line_splt.next()) |str| {
+        if (str.len == 0) {
+            continue;
+        }
+
+        if (str[0] == '#') {
+            return error.Empty_Line;
+        } else if (str[str.len - 1] == ':') {
+            if (!string.containsLettersOnly(str[0 .. str.len - 1])) return error.Alias_Can_Only_Contain_Letters;
+            const ret = aliases.getEntry(str[0 .. str.len - 1]);
+            if (ret) |_| {
+                return error.Duplicate_Alias;
+            } else {
+                try aliases.put(allocator, str[0 .. str.len - 1], binary_index);
+                continue;
+            }
+        }
+        return;
+    }
+}
+
+/// This function returns error.Empty_Line if the line is empty or has a comment before an alias or opcode
+/// This error is supposed to be "handled" by ignoring this line
+fn translateLine(
+    assembly_line: []const u8,
     aliases: *std.StringHashMapUnmanaged(u12),
 ) !Line {
     var line_splt = std.mem.splitScalar(u8, assembly_line, ' ');
@@ -63,18 +106,14 @@ fn translateLine(
             return error.Empty_Line;
         } else if (opcode[opcode.len - 1] == ':') {
             if (!string.containsLettersOnly(opcode[0 .. opcode.len - 1])) return error.Alias_Can_Only_Contain_Letters;
-            const ret = aliases.getEntry(opcode[0 .. opcode.len - 1]);
-            if (ret) |_| {
-                return error.Duplicate_Alias;
-            } else {
-                try aliases.put(allocator, opcode[0 .. opcode.len - 1], binary_index);
-                continue;
-            }
+            continue;
         }
 
         if (std.mem.eql(u8, opcode, "exe") or std.mem.eql(u8, opcode, "execute")) {
             binary_line.opcode = 0x0;
-            try getAddress(&line_splt, &binary_line);
+            getAddress(&line_splt, &binary_line) catch {
+                try getAlias(&line_splt, &binary_line, aliases.*);
+            };
         } else if (std.mem.eql(u8, opcode, "clr") or std.mem.eql(u8, opcode, "clear")) {
             binary_line = @bitCast(@as(u16, 0x00E0));
         } else if (std.mem.eql(u8, opcode, "ret") or std.mem.eql(u8, opcode, "return")) {
