@@ -38,7 +38,7 @@ N: A 4 bit number (NN for 8 bit and NNN for 12 bit addresses)
 rx, ry: A register (x and y values are 0-15)  
 <table>
   <tr>
-    <th>Alternatetive</th>
+    <th>Alternative</th>
     <th>Assembly</th>
     <th>Opcode</th>
     <th>Description</th>
