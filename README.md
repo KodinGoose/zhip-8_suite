@@ -19,7 +19,8 @@ Example:
 ```
 clear: clr  
 # An example of a "function"  
-# The only restriction on a label is that it can only consist of letters, it can have the same name as an opcode  
+# The only restriction on a label is that it can only consist of letters
+# It can have the same name as an opcode  
 ext:  
   ext  
   ret  
