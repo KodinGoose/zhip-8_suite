@@ -16,7 +16,8 @@ pub fn main() !void {
         if (err != error.HelpAsked) return err else {
             try std.io.getStdOut().writer().writeAll(
                 \\Usage: chip_assembler [args]
-                \\Example: chip_assembler -s "main.chs" -b "pong.ch8" -dB chip-8
+                \\Example: chip_assembler -s "main.chs" -b "pong.ch8" -dBn chip-8 decimal
+                \\
                 \\Args:
                 \\    i: Specify the index where the code starts (relevant for labels)
                 \\    A: Use assembly like equivalents of the commands (Only has an effect in de_assembler mode)
@@ -25,11 +26,19 @@ pub fn main() !void {
                 \\    s [source_file_name]: Specify the source file's name
                 \\    b [binary_file_name]: Specify the binary file's name
                 \\    B [build_target]: Specify a build target
+                \\    n [number_base]: Specify the base to use for numbers, only has an effect while disassembling
                 \\    h: Print this help text and exit
+                \\
                 \\Supported build targets:
                 \\    chip-8
                 \\    schip1.0
                 \\    schip1.1
+                \\
+                \\Supported number bases (N is a digit):
+                \\    binary: 0bNNNNNNNN
+                \\    octal: 0oNNN
+                \\    decimal: NNN
+                \\    hexadecimal (default): 0xNN
                 \\
             );
             return;
@@ -61,4 +70,23 @@ pub fn main() !void {
         defer file2.close();
         try file2.writeAll(lines);
     }
+}
+
+test "assemble + de-assemble" {
+    const file_contents = try std.testing.allocator.dupe(u8, @embedFile("./de_assemble_test.ch8"));
+    defer std.testing.allocator.free(file_contents);
+    const lines = try de_assembler.translate(
+        std.testing.allocator,
+        .{ .source_file_name = undefined, .binary_file_name = undefined },
+        file_contents,
+    );
+    defer std.testing.allocator.free(lines);
+    const lines2 = try assembler.translate(
+        std.testing.allocator,
+        (arg_handler.Args{ .source_file_name = undefined, .binary_file_name = undefined }).binary_start_index,
+        @constCast(lines),
+    );
+    defer std.testing.allocator.free(lines2);
+    const byte_lines: []u8 = @ptrCast(lines2);
+    try std.testing.expect(std.mem.eql(u8, file_contents, byte_lines));
 }

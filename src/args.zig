@@ -34,6 +34,13 @@ const FileName = struct {
     }
 };
 
+pub const NumberBase = enum(u8) {
+    binary,
+    octal,
+    decimal,
+    hexadecimal,
+};
+
 pub const Args = struct {
     build: Build = .chip_8,
     source_file_name: FileName,
@@ -41,7 +48,7 @@ pub const Args = struct {
     job: enum(u8) { assemble, de_assemble } = .assemble,
     binary_start_index: u12 = 512,
     use_assembly_like: bool = false,
-    number_base_to_use: enum(u8) { binary, octal, decimal, hexadecimal } = .decimal,
+    number_base_to_use: NumberBase = .hexadecimal,
 
     pub fn init(allocator: std.mem.Allocator) !Args {
         return .{
@@ -87,6 +94,18 @@ pub fn handleArgs(allocator: std.mem.Allocator) !Args {
                             args.build = .schip_1_0;
                         } else if (std.mem.eql(u8, build_str, "schip1.1")) {
                             args.build = .schip_1_1;
+                        } else return error.BroYourArgumentIsInvalid;
+                    },
+                    'n' => {
+                        const base_str = args_iter.next() orelse return error.NoBaseSpecified;
+                        if (std.mem.eql(u8, base_str, "binary")) {
+                            args.number_base_to_use = .binary;
+                        } else if (std.mem.eql(u8, base_str, "octal")) {
+                            args.number_base_to_use = .octal;
+                        } else if (std.mem.eql(u8, base_str, "decimal")) {
+                            args.number_base_to_use = .decimal;
+                        } else if (std.mem.eql(u8, base_str, "hexadecimal")) {
+                            args.number_base_to_use = .hexadecimal;
                         } else return error.BroYourArgumentIsInvalid;
                     },
                     'h' => return error.HelpAsked,

@@ -1,26 +1,63 @@
 const std = @import("std");
+const NumberBase = @import("args.zig").NumberBase;
 
 /// Does not support negative numbers (Cause this assembler doesn't need them)
-/// TODO: Make this support hexadecimanl, octal and binary
 pub fn intFromString(T: type, string: []const u8) !T {
-    var int: T = 0;
-    const max_int_value = std.math.maxInt(T);
-    for (string) |char| {
-        if (char < '0' or char > '9') return error.NotInteger;
-        int = try std.math.mul(T, int, 10);
-        const num = try std.math.sub(u8, char, '0');
-        if (num >= max_int_value) return error.Overflow;
-        int = try std.math.add(T, int, @intCast(num));
+    var int: if (@bitSizeOf(T) < 8) u8 else T = 0;
+    const int_max_value: T = std.math.maxInt(T);
+    if (string.len < 2) {
+        for (string) |char| {
+            if (char < '0' or char > '9') return error.NotInteger;
+            int = try std.math.mul(@TypeOf(int), int, 10);
+            const num = try std.math.sub(u8, char, '0');
+            int = try std.math.add(@TypeOf(int), int, @intCast(num));
+        }
+    } else if (std.mem.eql(u8, string[0..2], "0b")) {
+        for (string[2..]) |char| {
+            if (char < '0' or char > '1') return error.NotInteger;
+            int = try std.math.mul(@TypeOf(int), int, 2);
+            const num = try std.math.sub(u8, char, '0');
+            int = try std.math.add(@TypeOf(int), int, @intCast(num));
+        }
+    } else if (std.mem.eql(u8, string[0..2], "0o")) {
+        for (string[2..]) |char| {
+            if (char < '0' or char > '7') return error.NotInteger;
+            int = try std.math.mul(@TypeOf(int), int, 8);
+            const num = try std.math.sub(u8, char, '0');
+            int = try std.math.add(@TypeOf(int), int, @intCast(num));
+        }
+    } else if (std.mem.eql(u8, string[0..2], "0x")) {
+        for (string[2..]) |char| {
+            if ((char < '0' or char > '9') and !includesChar("ABCDEFabcdef", char)) return error.NotInteger;
+            int = try std.math.mul(@TypeOf(int), int, 16);
+            const num = try std.math.sub(u8, char, if (char <= '9') '0' else if (char <= 'F') 'A' - 10 else 'a' - 10);
+            int = try std.math.add(@TypeOf(int), int, @intCast(num));
+        }
+    } else {
+        for (string) |char| {
+            if (char < '0' or char > '9') return error.NotInteger;
+            int = try std.math.mul(@TypeOf(int), int, 10);
+            const num = try std.math.sub(u8, char, '0');
+            int = try std.math.add(@TypeOf(int), int, @intCast(num));
+        }
     }
-    return int;
+    if (int > int_max_value) return error.overflow;
+    return @intCast(int);
 }
 
-const NumberBase = enum(u8) {
-    binary,
-    octal,
-    decimal,
-    hexadecimal,
-};
+test "intFromString" {
+    const src1: []const u8 = "0b10011101";
+    const src2: []const u8 = "0o12345670";
+    const src3: []const u8 = "1234567890";
+    const src4: []const u8 = "0x123456789ABCDEF0";
+    const src5: []const u8 = "7";
+
+    try std.testing.expect(0b10011101 == try intFromString(u64, src1));
+    try std.testing.expect(0o12345670 == try intFromString(u64, src2));
+    try std.testing.expect(1234567890 == try intFromString(u64, src3));
+    try std.testing.expect(0x123456789ABCDEF0 == try intFromString(u64, src4));
+    try std.testing.expect(7 == try intFromString(u64, src5));
+}
 
 /// Doesn't support negative integers because chip-8 doesn't either
 /// Returned string is allocated and is owned by the caller
@@ -38,6 +75,7 @@ pub fn stringFromInt(allocator: std.mem.Allocator, base: NumberBase, int: anytyp
                 try string.append(@as(u8, @intCast(integer % 2)) + '0');
                 integer /= 2;
             }
+            try string.appendSlice("b0");
         },
         .octal => {
             try string.append(@as(u8, @intCast(integer % 8)) + '0');
@@ -46,6 +84,7 @@ pub fn stringFromInt(allocator: std.mem.Allocator, base: NumberBase, int: anytyp
                 try string.append(@as(u8, @intCast(integer % 8)) + '0');
                 integer /= 8;
             }
+            try string.appendSlice("o0");
         },
         .decimal => {
             try string.append(@as(u8, @intCast(integer % 10)) + '0');
@@ -74,6 +113,7 @@ pub fn stringFromInt(allocator: std.mem.Allocator, base: NumberBase, int: anytyp
                 }
                 integer /= 16;
             }
+            try string.appendSlice("x0");
         },
     }
     reverseString(string.items);
@@ -86,26 +126,23 @@ pub fn stringFromInt(allocator: std.mem.Allocator, base: NumberBase, int: anytyp
 test "stringFromInt" {
     var debug_allocator = std.testing.allocator_instance;
     defer _ = debug_allocator.deinit();
-    const allocator = debug_allocator.allocator();
+    var arena = std.heap.ArenaAllocator.init(debug_allocator.allocator());
+    defer arena.deinit();
+    const allocator = arena.allocator();
 
     const int1: u64 = 0b10011101;
     const int2: u64 = 0o12345670;
     const int3: u64 = 1234567890;
     const int4: u64 = 0x123456789ABCDEF0;
-
     const string1 = try stringFromInt(allocator, .binary, int1);
-    defer allocator.free(string1);
     const string2 = try stringFromInt(allocator, .octal, int2);
-    defer allocator.free(string2);
     const string3 = try stringFromInt(allocator, .decimal, int3);
-    defer allocator.free(string3);
     const string4 = try stringFromInt(allocator, .hexadecimal, int4);
-    defer allocator.free(string4);
 
-    try std.testing.expect(std.mem.eql(u8, string1, "10011101"));
-    try std.testing.expect(std.mem.eql(u8, string2, "12345670"));
+    try std.testing.expect(std.mem.eql(u8, string1, "0b10011101"));
+    try std.testing.expect(std.mem.eql(u8, string2, "0o12345670"));
     try std.testing.expect(std.mem.eql(u8, string3, "1234567890"));
-    try std.testing.expect(std.mem.eql(u8, string4, "123456789ABCDEF0"));
+    try std.testing.expect(std.mem.eql(u8, string4, "0x123456789ABCDEF0"));
 }
 
 /// Reverses the string in place
@@ -115,6 +152,29 @@ pub fn reverseString(string: []u8) void {
         string[i] = string[string.len - 1 - i];
         string[string.len - 1 - i] = tmp;
     }
+}
+
+test "reverseString" {
+    var debug_allocator = std.testing.allocator_instance;
+    defer _ = debug_allocator.deinit();
+    var arena = std.heap.ArenaAllocator.init(debug_allocator.allocator());
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const string1 = try allocator.dupe(u8, "12345");
+    const string2 = try allocator.dupe(u8, "54321");
+    const string3 = try allocator.dupe(u8, "aHSb21t");
+    const string4 = try allocator.dupe(u8, "");
+
+    reverseString(string1);
+    reverseString(string2);
+    reverseString(string3);
+    reverseString(string4);
+
+    try std.testing.expect(std.mem.eql(u8, string1, "54321"));
+    try std.testing.expect(std.mem.eql(u8, string2, "12345"));
+    try std.testing.expect(std.mem.eql(u8, string3, "t12bSHa"));
+    try std.testing.expect(std.mem.eql(u8, string4, ""));
 }
 
 pub fn containsLettersOnly(string: []const u8) bool {
@@ -129,4 +189,20 @@ pub fn toLowerCase(string: []u8) void {
         // A (65) + 32 = a (97)
         char.* += 32;
     }
+}
+
+/// Converts to upper case in place
+pub fn toUpperCase(string: []u8) void {
+    for (string) |*char| {
+        if (char.* < 'a' or char.* > 'z') continue;
+        // a (97) - 32 = A (65)
+        char.* -= 32;
+    }
+}
+
+pub fn includesChar(string: []const u8, char: u8) bool {
+    for (string) |str_char| {
+        if (str_char == char) return true;
+    }
+    return false;
 }
