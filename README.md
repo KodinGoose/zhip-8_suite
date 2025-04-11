@@ -13,7 +13,8 @@ exe 0xE0 # This is the same as cls
 
 The language supports labels with the following syntax:  
 [label_name]: This is for declaring a label, this can be on it's own line or before an opcode  
-:[label_name] This is for using an label as an argument for an opcode that asks for an address (Including the chip-8 variant of the "rjp" opcode)  
+:[label_name] This is how to specify which label to jump to.  
+Labels can be used as an arguemnt for any opcode that asks for an address(Including the chip-8 variant of the "rjp" opcode)  
 Example:  
 ```
 clear: clr  
@@ -26,9 +27,8 @@ jmp :clear
 cal :ext  
 ```
 
-(To be implemented as of date 2025.03.20)  
 The language supports decimal, hexadecimal (0xN), octal (0oN) and binary (0bN) format for numbers.  
-The assembler defaults to decimal unless otherwise specified.  
+The assembler defaults to hexadecimal unless otherwise specified.  
 
 This is a list of all the commands that are supported, their assembly like equivalent, what they assemble to and their description  
 Each opcode and number is 4 bits and represented in hexadecimal (In the following "table")  
