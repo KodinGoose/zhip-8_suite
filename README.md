@@ -268,13 +268,13 @@ rx, ry: A register (x and y values are 0-15)
     <td>saveRegisters rx</td>
     <td>wrg rx</td>
     <td>Fx55</td>
-    <td>Write the content of r0-rX at the memory pointed to by the address register, the address register is incremented by x+1 (x or 0 if ran in schip1.0 or schip1.1 modes respectively)</td>
+    <td>Write the content of r0-rX (including rX) at the memory pointed to by the address register, the address register is incremented by x+1 (x or 0 if ran in schip1.0 or schip1.1 modes respectively)</td>
   </tr>
   <tr>
     <td>loadRegisters rx</td>
     <td>rrg rx</td>
     <td>Fx65</td>
-    <td>Read the bytes from memory pointed to by I into the registers r0 to rX, the address register is incremented by X+1 (x or 0 if ran in schip1.0 or schip1.1 modes respectively)</td>
+    <td>Read the bytes from memory pointed to by I into the registers r0-rX (including rX), the address register is incremented by X+1 (x or 0 if ran in schip1.0 or schip1.1 modes respectively)</td>
   </tr>
   <tr>
     <td>saveRegistersStorage rx</td>
