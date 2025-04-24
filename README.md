@@ -202,7 +202,7 @@ rx, ry: A register (x and y values are 0-15)
     <td>draw rx ry N</td>
     <td>drw rx ry N</td>
     <td>DxyN</td>
-    <td>Draw 8xN pixel sprite at position rX, rY with data starting at the address in the address register (Having N equal to 0 makes the sprite 16 by 16 in the interpreter)</td>
+    <td>Draw 8xN pixel sprite at position rX, rY with data starting at the address in the address register (Having N equal to 0 makes the sprite 16 by 16 in the interpreter)  Sets rF to 1 if any set pixels are changed to unset, and 0 otherwise</td>
   </tr>
   <tr>
     <td>skipPressed rx</td>
