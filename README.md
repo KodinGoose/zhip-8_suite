@@ -169,12 +169,6 @@ rx, ry: A register (x and y values are 0-15)
     <td>Skip next opcode if rx != ry</td>
   </tr>
   <tr>
-    <td>skipNotEqual rx ry</td>
-    <td>sne rx ry</td>
-    <td>9xy0</td>
-    <td>Skip next opcode if rx != ry</td>
-  </tr>
-  <tr>
     <td>setAddressRegister NNN</td>
     <td>sar NNN</td>
     <td>ANNN</td>
