@@ -142,7 +142,7 @@ rx, ry: A register (x and y values are 0-15)
     <td>subtract rx ry</td>
     <td>sub rx ry</td>
     <td>8xy5</td>
-    <td>Subtract ry from rx, rF is set to 0 underflow and 1 otherwise (even if rx and rF is the same register)</td>
+    <td>Subtract ry from rx, rF is set to 0 on underflow and 1 otherwise (even if rx and rF is the same register)</td>
   </tr>
   <tr>
     <td>rightShift rx ry</td>
