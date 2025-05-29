@@ -260,25 +260,25 @@ rx, ry: A register (x and y values are 0-15)
   </tr>
   <tr>
     <td>saveRegisters rx</td>
-    <td>wrg rx</td>
+    <td>srg rx</td>
     <td>Fx55</td>
     <td>Write the content of r0-rX (including rX) at the memory pointed to by the address register, the address register is incremented by x+1 (x or 0 if ran in schip1.0 or schip1.1 modes respectively)</td>
   </tr>
   <tr>
     <td>loadRegisters rx</td>
-    <td>rrg rx</td>
+    <td>lrg rx</td>
     <td>Fx65</td>
     <td>Read the bytes from memory pointed to by I into the registers r0-rX (including rX), the address register is incremented by X+1 (x or 0 if ran in schip1.0 or schip1.1 modes respectively)</td>
   </tr>
   <tr>
-    <td>saveRegistersStorage rx</td>
-    <td>wrs rx</td>
+    <td>saveRegisters rx storage</td>
+    <td>srg rx storage</td>
     <td>Fx75</td>
     <td>Store the content of the registers r0 to rX into flags storage (outside of the addressable ram) (Not compatible with chip-8 but supported by the interpreter nonetheless)</td>
   </tr>
   <tr>
-    <td>loadRegistersStorage rx</td>
-    <td>rrs rx</td>
+    <td>loadRegisters rx storage</td>
+    <td>lrg rx storage</td>
     <td>Fx85</td>
     <td>Load the registers v0 to vX from flags storage (outside the addressable ram) (Not compatible with chip-8 but supported by the interpreter)</td>
   </tr>
