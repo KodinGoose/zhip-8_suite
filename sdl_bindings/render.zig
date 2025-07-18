@@ -122,6 +122,13 @@ pub const PixelFormat = enum(u32) {
     }
 };
 
+pub const Pixel = packed struct {
+    r: u8,
+    g: u8,
+    b: u8,
+    a: u8,
+};
+
 pub const ScaleMode = enum(i32) {
     /// Nearest pixel sampling
     nearest = C.SDL_SCALEMODE_NEAREST,
@@ -157,6 +164,13 @@ pub const Surface = extern struct {
         return @ptrCast(ret);
     }
 
+    /// Creates an exact copy of self
+    pub fn copy(self: *Surface) !*Surface {
+        const ret = C.SDL_DuplicateSurface(self.toSDL());
+        if (ret == null) return error.CouldntCopySurface;
+        return @ptrCast(ret);
+    }
+
     pub fn deinit(self: *Surface) void {
         C.SDL_DestroySurface(self.toSDL());
     }
@@ -169,17 +183,23 @@ pub const Surface = extern struct {
         return @ptrCast(surface);
     }
 
-    pub fn lock(self: Surface) !void {
-        const err = !C.SDL_LockSurface(&self.toSDL());
+    pub fn getFormatDetails(self: @This()) !*const C.SDL_PixelFormatDetails {
+        const format_details = C.SDL_GetPixelFormatDetails(self.format.toSDL());
+        if (format_details == null) return error.CouldntGetFormatDetails;
+        return format_details;
+    }
+
+    pub fn lock(self: *Surface) !void {
+        const err = !C.SDL_LockSurface(self.toSDL());
         if (err) return error.CouldntLockSurface;
     }
 
-    pub fn unlock(self: Surface) !void {
-        const err = !C.SDL_UnlockSurface(&self.toSDL());
+    pub fn unlock(self: *Surface) !void {
+        const err = !C.SDL_UnlockSurface(self.toSDL());
         if (err) return error.CouldntUnlockSurface;
     }
 
-    pub fn mustlock(self: Surface) bool {
+    pub fn mustlock(self: *Surface) bool {
         return C.SDL_MUSTLOCK(self.toSDL());
     }
 
@@ -195,6 +215,39 @@ pub const Surface = extern struct {
         if (!C.SDL_ClearSurface(self.toSDL(), color.r, color.g, color.b, color.a)) return error.CouldntClearSurface;
     }
 
+    /// Assumes pixel format is 24 bit wide
+    pub fn getPixel(self: *@This(), format_details: *const C.SDL_PixelFormatDetails, x: usize, y: usize) Pixel {
+        // r, g, b and a here aren't necessearily the actual red, green, blue and alpha
+        std.debug.assert(self.pixels != null);
+        var pixel: Pixel = undefined;
+        pixel.r = @as([*]u8, @ptrCast(self.pixels.?))[x * 3 + @as(u32, @bitCast(self.pitch)) * y + 0];
+        pixel.g = @as([*]u8, @ptrCast(self.pixels.?))[x * 3 + @as(u32, @bitCast(self.pitch)) * y + 1];
+        pixel.b = @as([*]u8, @ptrCast(self.pixels.?))[x * 3 + @as(u32, @bitCast(self.pitch)) * y + 2];
+        pixel.a = 0;
+        var red: u8 = undefined;
+        var green: u8 = undefined;
+        var blue: u8 = undefined;
+        C.SDL_GetRGB(
+            @as(u32, @bitCast(pixel)),
+            format_details,
+            null,
+            &red,
+            &green,
+            &blue,
+        );
+        return .{ .r = red, .g = green, .b = blue, .a = undefined };
+    }
+
+    /// Assumes pixel format is 24 bit wide
+    pub fn setPixel(self: *@This(), format_details: *const C.SDL_PixelFormatDetails, x: usize, y: usize, pixel: Pixel) void {
+        const stupid_pixel = C.SDL_MapRGB(format_details, null, pixel.r, pixel.g, pixel.b);
+        // r, g, b and a here aren't necessearily the actual red, green, blue and alpha
+        @as([*]u8, @ptrCast(self.pixels.?))[x * 3 + @as(u32, @bitCast(self.pitch)) * y + 0] = @as(Pixel, @bitCast(stupid_pixel)).r;
+        @as([*]u8, @ptrCast(self.pixels.?))[x * 3 + @as(u32, @bitCast(self.pitch)) * y + 1] = @as(Pixel, @bitCast(stupid_pixel)).g;
+        @as([*]u8, @ptrCast(self.pixels.?))[x * 3 + @as(u32, @bitCast(self.pitch)) * y + 2] = @as(Pixel, @bitCast(stupid_pixel)).b;
+    }
+
+    /// Blit other surface to self
     pub fn blitSurface(self: *@This(), other: *Surface, x: i32, y: i32) !void {
         // SDL ignores the width and height argument
         var tmp_rect = rect.Irect{ .x = x, .y = y, .w = undefined, .h = undefined };
@@ -203,9 +256,8 @@ pub const Surface = extern struct {
     }
 
     pub fn blitRect(self: *@This(), rectangle: *rect.Irect, color: C.SDL_Color) !void {
-        const stupid_format_details = C.SDL_GetPixelFormatDetails(self.format.toSDL());
-        if (stupid_format_details == null) return error.CouldntGetStupidDetails;
-        const stupid_color = C.SDL_MapRGBA(stupid_format_details, null, color.r, color.g, color.b, color.a);
+        const format_details = try self.getFormatDetails();
+        const stupid_color = C.SDL_MapRGBA(format_details, null, color.r, color.g, color.b, color.a);
         if (!C.SDL_FillSurfaceRect(self.toSDL(), rectangle.toSDL(), stupid_color)) return error.CouldntBlitRect;
     }
 
