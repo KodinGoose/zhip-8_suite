@@ -11,16 +11,23 @@ const help_text =
     \\    f: Fullscreen mode
     \\    i: Specify the programs starting index
     \\    h: Print this help text and exit
-    \\    p: Don't panic on encountering an error in the interpreted program
-    \\    r [int]: How many instruction to execute
+    \\    p: Don't panic on encountering an error in the interpreted program (this also buffers error printing)
+    \\    r [int]: How many instructions to execute
+    \\    C: Client mode (Do not use this flag)
     \\
     \\Supported build targets:
     \\    chip-8
+    \\    schip1.0
+    \\    schip1.1
+    \\    schip-modern
     \\
 ;
 
 pub const Build = enum(u8) {
     chip_8,
+    schip1_0,
+    schip1_1,
+    schip_modern,
 };
 
 /// Call deinit to free file_name
@@ -33,6 +40,7 @@ pub const Args = struct {
     /// How many instructions to execute
     /// Null means execute normally
     run_time: ?u64 = null,
+    client_mode: bool = false,
 
     /// Only affects file_name
     pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
@@ -51,7 +59,7 @@ pub const Args = struct {
 
 /// Caller must call Args.deinit once done
 pub fn handleArgs(allocator: std.mem.Allocator) !Args {
-    var error_handler = ErrorHandler{ .panic_on_error = true };
+    var error_handler = ErrorHandler{ ._panic_on_error = true, ._max_len = 4096, ._client_mode = false };
     defer error_handler.deinit(allocator);
 
     var args = Args{};
@@ -77,6 +85,12 @@ pub fn handleArgs(allocator: std.mem.Allocator) !Args {
                         };
                         if (std.mem.eql(u8, build_str, "chip-8")) {
                             args.build = .chip_8;
+                        } else if (std.mem.eql(u8, build_str, "schip1.0")) {
+                            args.build = .schip1_0;
+                        } else if (std.mem.eql(u8, build_str, "schip1.1")) {
+                            args.build = .schip1_1;
+                        } else if (std.mem.eql(u8, build_str, "schip-modern")) {
+                            args.build = .schip_modern;
                         } else try error_handler.handleError(allocator, "Build target not supported", error.InvalidArg);
                     },
                     'f' => args.fullscreen = !args.fullscreen,
@@ -107,6 +121,7 @@ pub fn handleArgs(allocator: std.mem.Allocator) !Args {
                         try error_handler.handleError(allocator, "Invalid number for 'r' arg, number must a 64 bit integer [0-2^64-1]", err);
                         unreachable;
                     },
+                    'C' => args.client_mode = !args.client_mode,
                     else => try error_handler.handleError(allocator, "Invalid argument\nJust like your mother tells you", error.InvalidArg),
                 }
             }
