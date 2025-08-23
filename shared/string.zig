@@ -1,4 +1,6 @@
 const std = @import("std");
+const Array = @import("array.zig");
+const BigInt = @import("bigint.zig").BigInt;
 
 pub const NumberBase = enum(u8) {
     binary,
@@ -7,7 +9,7 @@ pub const NumberBase = enum(u8) {
     hexadecimal,
 };
 
-/// Does not support negative numbers (Cause this assembler doesn't need them)
+/// Does not support negative numbers (Cause the assemblers doesn't need them)
 pub fn intFromString(T: type, string: []const u8) !T {
     var int: if (@bitSizeOf(T) < 8) u8 else T = 0;
     const int_max_value: T = std.math.maxInt(T);
@@ -63,6 +65,88 @@ test "intFromString" {
     try std.testing.expect(1234567890 == try intFromString(u64, src3));
     try std.testing.expect(0x123456789ABCDEF0 == try intFromString(u64, src4));
     try std.testing.expect(7 == try intFromString(u64, src5));
+}
+
+/// Does not support negative numbers (Cause the assemblers doesn't need them)
+/// byte_length is how many bytes to allocate for the bigint
+pub fn bigintFromString(allocator: std.mem.Allocator, byte_length: usize, string: []const u8) !BigInt {
+    var int = try BigInt.init(allocator, byte_length);
+    errdefer int.deinit(allocator);
+    // Note: It is planned that the add, sub, mul and div functions don't need the two numbers to be same byte length
+    //       Once that has been implemented this integer should always only use 1 byte
+    //       and thus not need to be allocated
+    var helper_int = try BigInt.init(allocator, byte_length);
+    defer helper_int.deinit(allocator);
+
+    if (string.len < 2) {
+        for (string) |char| {
+            if (char < '0' or char > '9') return error.NotInteger;
+            helper_int.array[0] = 10;
+            if (try int.mulInPlace(helper_int, allocator)) return error.Overflow;
+            helper_int.array[0] = try std.math.sub(u8, char, '0');
+            if (int.addInPlace(helper_int)) return error.Overflow;
+        }
+    } else if (std.mem.eql(u8, string[0..2], "0b")) {
+        for (string[2..]) |char| {
+            if (char < '0' or char > '1') return error.NotInteger;
+            helper_int.array[0] = 2;
+            if (try int.mulInPlace(helper_int, allocator)) return error.Overflow;
+            helper_int.array[0] = try std.math.sub(u8, char, '0');
+            if (int.addInPlace(helper_int)) return error.Overflow;
+        }
+    } else if (std.mem.eql(u8, string[0..2], "0o")) {
+        for (string[2..]) |char| {
+            if (char < '0' or char > '7') return error.NotInteger;
+            helper_int.array[0] = 8;
+            if (try int.mulInPlace(helper_int, allocator)) return error.Overflow;
+            helper_int.array[0] = try std.math.sub(u8, char, '0');
+            if (int.addInPlace(helper_int)) return error.Overflow;
+        }
+    } else if (std.mem.eql(u8, string[0..2], "0x")) {
+        for (string[2..]) |char| {
+            if ((char < '0' or char > '9') and !includesChar("ABCDEFabcdef", char)) return error.NotInteger;
+            helper_int.array[0] = 16;
+            if (try int.mulInPlace(helper_int, allocator)) return error.Overflow;
+            helper_int.array[0] = try std.math.sub(u8, char, if (char <= '9') '0' else if (char <= 'F') 'A' - 10 else 'a' - 10);
+            if (int.addInPlace(helper_int)) return error.Overflow;
+        }
+    } else {
+        for (string) |char| {
+            if (char < '0' or char > '9') return error.NotInteger;
+            helper_int.array[0] = 10;
+            if (try int.mulInPlace(helper_int, allocator)) return error.Overflow;
+            helper_int.array[0] = try std.math.sub(u8, char, '0');
+            if (int.addInPlace(helper_int)) return error.Overflow;
+        }
+    }
+    return int;
+}
+
+test "bigintFromString" {
+    const allocator = std.testing.allocator;
+
+    const str1: []const u8 = "0b10011101";
+    const str2: []const u8 = "0o12345670";
+    const str3: []const u8 = "1234567890";
+    const str4: []const u8 = "0x123456789ABCDEF0";
+    const str5: []const u8 = "7";
+
+    var bigint1 = try bigintFromString(allocator, 8, str1);
+    defer bigint1.deinit(allocator);
+    var bigint2 = try bigintFromString(allocator, 8, str2);
+    defer bigint2.deinit(allocator);
+    var bigint3 = try bigintFromString(allocator, 8, str3);
+    defer bigint3.deinit(allocator);
+    var bigint4 = try bigintFromString(allocator, 8, str4);
+    defer bigint4.deinit(allocator);
+    var bigint5 = try bigintFromString(allocator, 8, str5);
+    defer bigint5.deinit(allocator);
+
+    try std.testing.expect(0b10011101 == std.mem.bytesAsValue(u64, bigint1.array).*);
+    try std.testing.expect(0o12345670 == std.mem.bytesAsValue(u64, bigint2.array).*);
+    try std.testing.expect(1234567890 == std.mem.bytesAsValue(u64, bigint3.array).*);
+    try std.testing.expect(0x123456789ABCDEF0 == std.mem.bytesAsValue(u64, bigint4.array).*);
+    try std.testing.expect(7 == std.mem.bytesAsValue(u64, bigint5.array).*);
 }
 
 /// Doesn't support negative integers because chip-8 doesn't either
@@ -122,7 +206,7 @@ pub fn stringFromInt(allocator: std.mem.Allocator, base: NumberBase, int: anytyp
             try string.appendSlice("x0");
         },
     }
-    reverseString(string.items);
+    Array.reverseArray(u8, string.items);
     // This was in a defer statement right after initialization but the zig compilers with versions
     // higher than 0.13 don't like it for some reason and causes a segfault at runtime
     string.shrinkAndFree(string.items.len);
@@ -227,7 +311,7 @@ pub fn stringFromIntNoAlloc(buffer: []u8, base: NumberBase, int: anytype) []cons
             buffer_index += 1;
         },
     }
-    reverseString(buffer[0..buffer_index]);
+    Array.reverseArray(u8, buffer[0..buffer_index]);
     // This was in a defer statement right after initialization but the zig compilers with versions
     // higher than 0.13 don't like it for some reason and causes a segfault at runtime
     return buffer[0..buffer_index];
@@ -253,45 +337,32 @@ test "stringFromIntNoAlloc" {
     try std.testing.expect(std.mem.eql(u8, string4, "0x123456789ABCDEF0"));
 }
 
-/// Reverses the string in place
-pub fn reverseString(string: []u8) void {
-    for (0..string.len / 2) |i| {
-        const tmp = string[i];
-        string[i] = string[string.len - 1 - i];
-        string[string.len - 1 - i] = tmp;
-    }
-}
-
-test "reverseString" {
-    var debug_allocator = std.testing.allocator_instance;
-    defer _ = debug_allocator.deinit();
-    var arena = std.heap.ArenaAllocator.init(debug_allocator.allocator());
-    defer arena.deinit();
-    const allocator = arena.allocator();
-
-    const string1 = try allocator.dupe(u8, "12345");
-    const string2 = try allocator.dupe(u8, "54321");
-    const string3 = try allocator.dupe(u8, "aHSb21t");
-    const string4 = try allocator.dupe(u8, "");
-
-    reverseString(string1);
-    reverseString(string2);
-    reverseString(string3);
-    reverseString(string4);
-
-    try std.testing.expect(std.mem.eql(u8, string1, "54321"));
-    try std.testing.expect(std.mem.eql(u8, string2, "12345"));
-    try std.testing.expect(std.mem.eql(u8, string3, "t12bSHa"));
-    try std.testing.expect(std.mem.eql(u8, string4, ""));
-}
-
 pub fn containsLettersOnly(string: []const u8) bool {
     for (string) |char| if ((char < 'a' or char > 'z') and (char < 'A' or char > 'Z')) return false;
     return true;
 }
 
+// Printable ascii does not include whitespace characters
+pub fn containsPrintableAsciiOnly(string: []const u8) bool {
+    for (string) |char| if (char < '!' or char > '~') return false;
+    return true;
+}
+
+pub fn toLowerCase(allocator: std.mem.Allocator, string: []const u8) ![]u8 {
+    const new_str = try allocator.alloc(u8, string.len);
+    for (string, new_str) |char, *new_e| {
+        if (char < 'A' or char > 'Z') {
+            new_e.* = char;
+        } else {
+            // A (65) + 32 = a (97)
+            new_e.* = char + 32;
+        }
+    }
+    return new_str;
+}
+
 /// Converts to lower case in place
-pub fn toLowerCase(string: []u8) void {
+pub fn toLowerCaseInPlace(string: []u8) void {
     for (string) |*char| {
         if (char.* < 'A' or char.* > 'Z') continue;
         // A (65) + 32 = a (97)
@@ -299,8 +370,21 @@ pub fn toLowerCase(string: []u8) void {
     }
 }
 
+pub fn toUpperCase(allocator: std.mem.Allocator, string: []const u8) ![]u8 {
+    const new_str = try allocator.alloc(u8, string.len);
+    for (string, new_str) |char, *new_e| {
+        if (char < 'a' or char > 'z') {
+            new_e.* = char;
+        } else {
+            // a (97) - 32 = A (65)
+            new_e.* = char - 32;
+        }
+    }
+    return new_str;
+}
+
 /// Converts to upper case in place
-pub fn toUpperCase(string: []u8) void {
+pub fn toUpperCaseInPlace(string: []u8) void {
     for (string) |*char| {
         if (char.* < 'a' or char.* > 'z') continue;
         // a (97) - 32 = A (65)

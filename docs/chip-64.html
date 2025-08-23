@@ -1,0 +1,391 @@
+<!-- So that firefox is not in quirks mode -->
+<!DOCTYPE html>
+
+<style>
+  * {
+    background-color: #101010;
+    color: #FFFFFF;
+    font-size: 18px;
+    font-family: monospace;
+  }
+  table, th, td {
+    border: solid 3px #C0C0C0;
+    border-collapse: collapse;
+  }
+  th, td {
+    padding: 8px;
+  }
+  .Op {
+    text-align: center;
+  }
+  table {
+    width: 100%;
+  }
+</style>
+
+<table>
+  <tr>
+    <th>Code</th>
+    <th>Opcode</th>
+    <th>Description</th>
+  </tr>
+
+  <tr>
+    <td>halt</td>
+    <td class = "Op">00</td>
+    <td>Stop execution and don't catch fire</td>
+  </tr>
+  <tr>
+    <td>exit</td>
+    <td class = "Op">01</td>
+    <td>Stop execution and exit</td>
+  </tr>
+  <tr>
+    <td>clear</td>
+    <td class = "Op">02</td>
+    <td>Clears the screen</td>
+  </tr>
+  <tr>
+    <td>return</td>
+    <td class = "Op">03</td>
+    <td>Returns from subroutine/function. Pops address off of stack and jumps to it. If there are no values on stack stop execution and exit</td>
+  </tr>
+  <tr>
+    <td>resolution N N</td>
+    <td class = "Op">04 ++ N ++ N</td>
+    <td>Change window resolution to NxN. N is 16 bit</td>
+  </tr>
+  <tr>
+    <td>scroll up N</td>
+    <td class = "Op">05 ++ N</td>
+    <td>Scroll screen up N pixels. N is 16 bit</td>
+  </tr>
+  <tr>
+    <td>scroll right N</td>
+    <td class = "Op">06 ++ N</td>
+    <td>Scroll screen right N pixels. N is 16 bit</td>
+  </tr>
+  <tr>
+    <td>scroll down N</td>
+    <td class = "Op">07 ++ N</td>
+    <td>Scroll screen down N pixels. N is 16 bit</td>
+  </tr>
+  <tr>
+    <td>scroll left N</td>
+    <td class = "Op">08 ++ N</td>
+    <td>Scroll screen left N pixels. N is 16 bit</td>
+  </tr>
+  
+  <tr>
+    <td>jump A/L</td>
+    <td class = "Op">10 ++ A</td>
+    <td>Jump to A/L</td>
+  </tr>
+  <tr>
+    <td>jump A/L T if A/L < A/L</td>
+    <td class = "Op">11 ++ A ++ T ++ A ++ A</td>
+    <td>Jump to A/L if number at A/L < number at A/L</td>
+  </tr>
+  <tr>
+    <td>jump A/L T if A/L <= A/L</td>
+    <td class = "Op">12 ++ A ++ T ++ A ++ A</td>
+    <td>Jump to A/L if number at A/L <= number at A/L</td>
+  </tr>
+  <tr>
+    <td>jump A/L T if A/L > A/L</td>
+    <td class = "Op">13 ++ A ++ T ++ A ++ A</td>
+    <td>Jump to A/L if number at A/L > number at A/L</td>
+  </tr>
+  <tr>
+    <td>jump A/L T if A/L >= A/L</td>
+    <td class = "Op">14 ++ A ++ T ++ A ++ A</td>
+    <td>Jump to A/L if number at A/L >= number at A/L</td>
+  </tr>
+  <tr>
+    <td>jump A/L T if A/L == A/L</td>
+    <td class = "Op">15 ++ A ++ T ++ A ++ A</td>
+    <td>Jump to A/L if number at A/L == number at A/L</td>
+  </tr>
+  <tr>
+    <td>jump A/L T if A/L != A/L</td>
+    <td class = "Op">16 ++ A ++ T ++ A ++ A</td>
+    <td>Jump to A/L if number at A/L != number at A/L</td>
+  </tr>
+  <tr>
+    <td>call A/L</td>
+    <td class = "Op">17 ++ A</td>
+    <td>Call subroutine/function at A/L. Pushes program pointer onto the stack</td>
+  </tr>
+  
+  <tr>
+    <td>reserve T</td>
+    <td class = "Op">T</td>
+    <td>
+      Reserve space for number of type T with undefined value (likely zero)
+    </td>
+  </tr>
+  <tr>
+    <td>reserve T N</td>
+    <td class = "Op">T ** N</td>
+    <td>
+      Reserve space for N amount of numbers of type T with undefined values (likely zeros)<br>
+      If you want the length of the list to be stored or for the list to be terminated by a number, you must do it manually
+    </td>
+  </tr>
+  <tr>
+    <td>create T [values]</td>
+    <td class = "Op">T ** N</td>
+    <td>
+      Reserve space for numbers of type T with values of [values]<br>
+      If you want the length of the list to be stored or for the list to be terminated by a number, you must do it manually<br>
+      An arbitrary amount of N values can be given<br>
+    </td>
+  </tr>
+  
+  <tr>
+    <td>alloc A/L N</td>
+    <td class = "Op">20 ++ A ++ N</td>
+    <td>Allocates N (64 bit unsigned) amount of bytes (list) with undefined values and saves the reference at A/L</td>
+  </tr>
+  <tr>
+    <td>alloc A/L A/L</td>
+    <td class = "Op">21 ++ A ++ A</td>
+    <td>Allocates amount at second A/L (64 bit unsigned) of bytes (list) with undefined values and saves the reference at first A/L</td>
+  </tr>
+
+  <tr>
+    <td>set T A/L N</td>
+    <td class = "Op">30 ++ T ++ A ++ N</td>
+    <td>Set number at A/L to N</td>
+  </tr>
+  <tr>
+    <td>set T A/L A/L</td>
+    <td class = "Op">31 ++ T ++ A ++ A</td>
+    <td>Set number at A/L to number at A/L</td>
+  </tr>
+
+  <tr>
+    <td>add T A/L N</td>
+    <td class = "Op">40 ++ T ++ A ++ N</td>
+    <td>Add number N to number at A/L</td>
+  </tr>
+  <tr>
+    <td>add T A/L A/L</td>
+    <td class = "Op">41 ++ T ++ A ++ A</td>
+    <td>Add number at A/L to number at A/L</td>
+  </tr>
+  <tr>
+    <td>sub T A/L N</td>
+    <td class = "Op">42 ++ T ++ A ++ N</td>
+    <td>Take away N from number at A/L</td>
+  </tr>
+  <tr>
+    <td>sub T A/L A/L</td>
+    <td class = "Op">43 ++ T ++ A ++ A</td>
+    <td>Take away number at A/L from number at A/L</td>
+  </tr>
+  <tr>
+    <td>mul T A/L N</td>
+    <td class = "Op">44 ++ T ++ A ++ N</td>
+    <td>Multiply number at A/L by N</td>
+  </tr>
+  <tr>
+    <td>mul T A/L A/L</td>
+    <td class = "Op">45 ++ T ++ A ++ A</td>
+    <td>Multiply number at second A/L by number at first A/L</td>
+  </tr>
+  <tr>
+    <td>div T A/L N</td>
+    <td class = "Op">46 ++ T ++ A ++ N</td>
+    <td>Divide number at A/L by N (Truncating division)</td>
+  </tr>
+  <tr>
+    <td>div T A/L A/L</td>
+    <td class = "Op">47 ++ T ++ A ++ A</td>
+    <td>Divide number at second A/L by number at first A/L (Truncating division)</td>
+  </tr>
+  <tr>
+    <td>mod T A/L N</td>
+    <td class = "Op">48 ++ T ++ A ++ N</td>
+    <td>Modulo number at A/L by N</td>
+  </tr>
+  <tr>
+    <td>mod T A/L A/L</td>
+    <td class = "Op">49 ++ T ++ A ++ A</td>
+    <td>Modulo number at second A/L by number at first A/L</td>
+  </tr>
+
+  <tr>
+    <td>shift_left T A/L N</td>
+    <td class = "Op">50 ++ T ++ A ++ N</td>
+    <td>Shift number at A/L left N (24 bit unsigned) bits</td>
+  </tr>
+  <tr>
+    <td>shift_left T A/L N saturate</td>
+    <td class = "Op">51 ++ T ++ A ++ N</td>
+    <td>Shift number at A/L left N (24 bit unsigned) bits. Shifted in bits are set to 1</td>
+  </tr>
+  <tr>
+    <td>shift_right T A/L N</td>
+    <td class = "Op">52 ++ T ++ A ++ N</td>
+    <td>Shift number at A/L right N (24 bit unsigned) bits</td>
+  </tr>
+  <tr>
+    <td>shift_right T A/L N saturate</td>
+    <td class = "Op">53 ++ T ++ A ++ N</td>
+    <td>Shift number at A/L right N (24 bit unsigned) bits. Shifted in bits are set to 1</td>
+  </tr>
+  <tr>
+    <td>and T A/L N</td>
+    <td class = "Op">54 ++ T ++ A ++ N</td>
+    <td>Bitwise and the number at A/L with N</td>
+  </tr>
+  <tr>
+    <td>or T A/L N</td>
+    <td class = "Op">55 ++ T ++ A ++ N</td>
+    <td>Bitwise or the number at A/L with N</td>
+  </tr>
+  <tr>
+    <td>xor T A/L A</td>
+    <td class = "Op">56 ++ T ++ A ++ N</td>
+    <td>Bitwise xor the number at A/L with N</td>
+  </tr>
+  <tr>
+    <td>not T A/L A</td>
+    <td class = "Op">57 ++ T ++ A ++ N</td>
+    <td>Bitwise not the number at A/L with N</td>
+  </tr>
+  <tr>
+    <td>rand T A/L</td>
+    <td class = "Op">58 ++ T ++ A</td>
+    <td>Sets the number at A/L to a pseudo random value</td>
+  </tr>
+  
+  <tr>
+    <td>key_pressed N A/L jump</td>
+    <td class = "Op">60 ++ N ++ A</td>
+    <td>
+      Jump to A/L if key corresponding to N is pressed<br>
+      See <a href = "https://wiki.libsdl.org/SDL3/SDL_Scancode">https://wiki.libsdl.org/SDL3/SDL_Scancode</a> for specific values<br>
+      Ignores keyboard layout
+    </td>
+  </tr>
+  <tr>
+    <td>key_pressed N A/L call</td>
+    <td class = "Op">61 ++ N ++ A</td>
+    <td>
+      Call subroutine/functon at A/L if key corresponding to N is pressed<br>
+      See <a href = "https://wiki.libsdl.org/SDL3/SDL_Scancode">https://wiki.libsdl.org/SDL3/SDL_Scancode</a> for specific values<br>
+      Ignores keyboard layout
+    </td>
+  </tr>
+  <tr>
+    <td>key_released N A/L jump</td>
+    <td class = "Op">62 ++ N ++ A</td>
+    <td>
+      Jump to A/L if key corresponding to N is released<br>
+      See <a href = "https://wiki.libsdl.org/SDL3/SDL_Scancode">https://wiki.libsdl.org/SDL3/SDL_Scancode</a> for specific values<br>
+      Ignores keyboard layout
+    </td>
+  </tr>
+  <tr>
+    <td>key_released N A/L call</td>
+    <td class = "Op">63 ++ N ++ A</td>
+    <td>
+      Call subroutine/functon at A/L if key corresponding to N is released<br>
+      See <a href = "https://wiki.libsdl.org/SDL3/SDL_Scancode">https://wiki.libsdl.org/SDL3/SDL_Scancode</a> for specific values<br>
+      Ignores keyboard layout
+    </td>
+  </tr>
+  <tr>
+    <td>key_pressed N A/L jump wait</td>
+    <td class = "Op">64 ++ N ++ A</td>
+    <td>
+      Jump to A/L if key corresponding to N is pressed<br>
+      See <a href = "https://wiki.libsdl.org/SDL3/SDL_Scancode">https://wiki.libsdl.org/SDL3/SDL_Scancode</a> for specific values<br>
+      Ignores keyboard layout<br>
+      Waits until key is pressed
+    </td>
+  </tr>
+  <tr>
+    <td>key_pressed N A/L call wait</td>
+    <td class = "Op">65 ++ N ++ A</td>
+    <td>
+      Call subroutine/functon at A/L if key corresponding to N is pressed<br>
+      See <a href = "https://wiki.libsdl.org/SDL3/SDL_Scancode">https://wiki.libsdl.org/SDL3/SDL_Scancode</a> for specific values<br>
+      Ignores keyboard layout<br>
+      Waits until key is pressed
+    </td>
+  </tr>
+  <tr>
+    <td>key_released N A/L jump wait</td>
+    <td class = "Op">66 ++ N ++ A</td>
+    <td>
+      Jump to A/L if key corresponding to N is released<br>
+      See <a href = "https://wiki.libsdl.org/SDL3/SDL_Scancode">https://wiki.libsdl.org/SDL3/SDL_Scancode</a> for specific values<br>
+      Ignores keyboard layout<br>
+      Waits until key is released
+    </td>
+  </tr>
+  <tr>
+    <td>key_released N A/L call wait</td>
+    <td class = "Op">67 ++ N ++ A</td>
+    <td>
+      Call subroutine/functon at A/L if key corresponding to N is released<br>
+      See <a href = "https://wiki.libsdl.org/SDL3/SDL_Scancode">https://wiki.libsdl.org/SDL3/SDL_Scancode</a> for specific values<br>
+      Ignores keyboard layout<br>
+      Waits until key is released
+    </td>
+  </tr>
+
+  <tr>
+    <td>draw T N N A/L A/L A/L</td>
+    <td class = "Op">70 ++ T ++ N ++ N ++ A ++ A ++ A</td>
+    <td>
+      Draw NxN sprite at position X, Y where X is the number at first A/L and Y is the number at second A/L<br>
+      The pixels being drawn are at third A/L<br>
+      The pixels format is 32 bit rgba<br>
+      N are 16 bit
+    </td>
+  </tr>
+  <tr>
+    <td>load null A/L A/L</td>
+    <td class = "Op">80 ++ A ++ A</td>
+    <td>
+      Load file with name of string at first A/L into second A/L<br>
+      String is expected to be null terminated
+      An extra null terminator is writen after the loaded data
+    </td>
+  </tr>
+  <tr>
+    <td>load len A/L A/L A/L</td>
+    <td class = "Op">81 ++ A ++ A ++ A</td>
+    <td>
+      Load file with name of string at first A/L into second A/L<br>
+      The string's length is expected to be just before the list and to be 64 bit unsigned<br>
+      The length (64 bit unsigned) of the data is writen to third A/L (Done this way in case no information about loaded data is desired)
+    </td>
+  </tr>
+  <tr>
+    <td>save null A/L A/L</td>
+    <td class = "Op">82 ++ A ++ A</td>
+    <td>
+      Save file with name of string at first A/L and data starting at second A/L<br>
+      String and data is expected to be null terminated
+    </td>
+  </tr>
+  <tr>
+    <td>save len A/L A/L</td>
+    <td class = "Op">83 ++ A ++ A</td>
+    <td>
+      Save file with name of string at first A/L and data starting at second A/L<br>
+      The string's and data's length is expected to be just before the respective list and to be 64 bit unsigned
+    </td>
+  </tr>
+  
+  <tr>
+    <td></td>
+    <td></td>
+    <td></td>
+  </tr>
+</table>
