@@ -138,107 +138,86 @@ fn assembleInstructions(
                 binary_index.* += 1;
             } else if (eql(assembly_opcode, "resolution")) {
                 try binary.append(allocator, 0x04);
-                try binary.appendSlice(allocator, &@as([2]u8, @bitCast(getInt(allocator, error_writer, u16, &splt_line, line_number.*, .strict, .big) catch |err| {
-                    if (err == error.ErrorPrinted) continue :line_loop else return err;
-                } orelse unreachable)));
-                try binary.appendSlice(allocator, &@as([2]u8, @bitCast(getInt(allocator, error_writer, u16, &splt_line, line_number.*, .strict, .big) catch |err| {
-                    if (err == error.ErrorPrinted) continue :line_loop else return err;
-                } orelse unreachable)));
-                binary_index.* += 5;
-            } else if (eql(assembly_opcode, "scroll")) {
-                while (true) {
-                    const arg = splt_line.next() orelse {
-                        ErrorHandler.printAssembleError(error_writer, "Missing argument(s)", line_number.*) catch continue :line_loop;
-                    };
-                    if (arg.len == 0) {
-                        continue;
-                    }
+                binary_index.* += 1;
 
-                    const low_arg = try String.toLowerCase(allocator, arg);
-                    defer allocator.free(low_arg);
-                    if (eql(low_arg, "up")) {
-                        try binary.append(allocator, 0x05);
-                    } else if (eql(low_arg, "right")) {
-                        try binary.append(allocator, 0x06);
-                    } else if (eql(low_arg, "down")) {
-                        try binary.append(allocator, 0x07);
-                    } else if (eql(low_arg, "left")) {
-                        try binary.append(allocator, 0x08);
-                    } else {
-                        ErrorHandler.printAssembleError(error_writer, "Incorrect argument", line_number.*) catch continue :line_loop;
-                        continue :line_loop;
-                    }
-                    break;
-                }
                 try binary.appendSlice(allocator, &@as([2]u8, @bitCast(getInt(allocator, error_writer, u16, &splt_line, line_number.*, .strict, .big) catch |err| {
                     if (err == error.ErrorPrinted) continue :line_loop else return err;
                 } orelse unreachable)));
-                binary_index.* += 3;
-            } else if (eql(assembly_opcode, "jump")) {
+                binary_index.* += 2;
+
+                try binary.appendSlice(allocator, &@as([2]u8, @bitCast(getInt(allocator, error_writer, u16, &splt_line, line_number.*, .strict, .big) catch |err| {
+                    if (err == error.ErrorPrinted) continue :line_loop else return err;
+                } orelse unreachable)));
+                binary_index.* += 2;
+            } else if (eql(assembly_opcode, "scroll")) {
+                const arg = (try getStr(allocator, error_writer, &splt_line, line_number.*, .strict)).?;
+                defer allocator.free(arg);
+                if (eql(arg, "up")) {
+                    try binary.append(allocator, 0x05);
+                } else if (eql(arg, "right")) {
+                    try binary.append(allocator, 0x06);
+                } else if (eql(arg, "down")) {
+                    try binary.append(allocator, 0x07);
+                } else if (eql(arg, "left")) {
+                    try binary.append(allocator, 0x08);
+                } else {
+                    ErrorHandler.printAssembleError(error_writer, "Incorrect argument", line_number.*) catch continue :line_loop;
+                    continue :line_loop;
+                }
+                binary_index.* += 1;
+
+                try binary.appendSlice(allocator, &@as([2]u8, @bitCast(getInt(allocator, error_writer, u16, &splt_line, line_number.*, .strict, .big) catch |err| {
+                    if (err == error.ErrorPrinted) continue :line_loop else return err;
+                } orelse unreachable)));
+                binary_index.* += 2;
+            } else if (eql(assembly_opcode, "jump")) blk: {
                 try binary.append(allocator, 0x10);
                 const instruction_index: usize = binary.items.len - 1;
                 binary_index.* += 1;
+
                 try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
                     if (err == error.ErrorPrinted) continue :line_loop else return err;
                 })));
                 binary_index.* += 8;
+
                 const opt_num: ?u16 = getInt(allocator, error_writer, u16, &splt_line, line_number.*, .optional, .big) catch |err| {
                     if (err == error.ErrorPrinted) continue :line_loop else return err;
                 };
-                if (opt_num != null) {
-                    try binary.appendSlice(allocator, &@as([2]u8, @bitCast(opt_num.?)));
-                    binary_index.* += 2;
-                    while (true) {
-                        const arg = splt_line.next() orelse {
-                            ErrorHandler.printAssembleError(error_writer, "Missing argument(s)", line_number.*) catch continue :line_loop;
-                        };
-                        if (arg.len == 0) {
-                            continue;
-                        }
-                        const low_arg = try String.toLowerCase(allocator, arg);
-                        defer allocator.free(low_arg);
-                        if (!eql(low_arg, "if")) {
-                            ErrorHandler.printAssembleError(error_writer, "Incorrect argument", line_number.*) catch continue :line_loop;
-                        }
-                        try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
-                            if (err == error.ErrorPrinted) continue :line_loop else return err;
-                        })));
-                        binary_index.* += 8;
+                if (opt_num == null) break :blk;
+                try binary.appendSlice(allocator, &@as([2]u8, @bitCast(opt_num.?)));
+                binary_index.* += 2;
 
-                        while (true) {
-                            const arg2 = splt_line.next() orelse {
-                                ErrorHandler.printAssembleError(error_writer, "Missing argument(s)", line_number.*) catch continue :line_loop;
-                            };
-                            if (arg2.len == 0) {
-                                continue;
-                            }
-                            const low_arg2 = try String.toLowerCase(allocator, arg2);
-                            defer allocator.free(low_arg2);
-                            if (eql(low_arg2, "<")) {
-                                binary.items[instruction_index] += 1;
-                            } else if (eql(low_arg2, "<=")) {
-                                binary.items[instruction_index] += 2;
-                            } else if (eql(low_arg2, ">")) {
-                                binary.items[instruction_index] += 3;
-                            } else if (eql(low_arg2, ">=")) {
-                                binary.items[instruction_index] += 4;
-                            } else if (eql(low_arg2, "==")) {
-                                binary.items[instruction_index] += 5;
-                            } else if (eql(low_arg2, "!=")) {
-                                binary.items[instruction_index] += 6;
-                            } else {
-                                ErrorHandler.printAssembleError(error_writer, "Incorrect argument", line_number.*) catch continue :line_loop;
-                            }
-                            try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
-                                if (err == error.ErrorPrinted) continue :line_loop else return err;
-                            })));
-                            binary_index.* += 8;
-                            break;
-                        }
-
-                        break;
-                    }
+                const arg = (try getStr(allocator, error_writer, &splt_line, line_number.*, .strict)).?;
+                defer allocator.free(arg);
+                if (!eql(arg, "if")) {
+                    ErrorHandler.printAssembleError(error_writer, "Incorrect argument", line_number.*) catch continue :line_loop;
                 }
+                try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
+                    if (err == error.ErrorPrinted) continue :line_loop else return err;
+                })));
+                binary_index.* += 8;
+
+                const arg2 = (try getStr(allocator, error_writer, &splt_line, line_number.*, .strict)).?;
+                defer allocator.free(arg2);
+                if (eql(arg2, "<")) {
+                    binary.items[instruction_index] += 1;
+                } else if (eql(arg2, "<=")) {
+                    binary.items[instruction_index] += 2;
+                } else if (eql(arg2, ">")) {
+                    binary.items[instruction_index] += 3;
+                } else if (eql(arg2, ">=")) {
+                    binary.items[instruction_index] += 4;
+                } else if (eql(arg2, "==")) {
+                    binary.items[instruction_index] += 5;
+                } else if (eql(arg2, "!=")) {
+                    binary.items[instruction_index] += 6;
+                } else {
+                    ErrorHandler.printAssembleError(error_writer, "Incorrect argument", line_number.*) catch continue :line_loop;
+                }
+                try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
+                    if (err == error.ErrorPrinted) continue :line_loop else return err;
+                })));
+                binary_index.* += 8;
             } else if (eql(assembly_opcode, "call")) {
                 try binary.append(allocator, 0x17);
                 binary_index.* += 1;
@@ -501,6 +480,37 @@ const Allowed = enum(u8) {
     optional,
     both,
 };
+
+/// Returns null if allowed == .optional and arg is missing
+/// Prints error on other errors
+fn getStr(
+    allocator: std.mem.Allocator,
+    error_writer: *std.Io.Writer,
+    splt_line: *std.mem.SplitIterator(u8, .scalar),
+    line_number: usize,
+    /// value must be Allowed.strict of Allowed.optional
+    allowed: Allowed,
+) !?[]u8 {
+    std.debug.assert(allowed == .strict or allowed == .optional);
+    while (true) {
+        const str = splt_line.peek() orelse {
+            if (allowed == .optional) {
+                return null;
+            } else {
+                return ErrorHandler.printAssembleError(error_writer, "Missing argument(s)", line_number);
+            }
+        };
+
+        if (str.len == 0) {
+            _ = splt_line.next();
+            continue;
+        }
+        const low_str = try String.toLowerCase(allocator, str);
+
+        _ = splt_line.next();
+        return low_str;
+    }
+}
 
 /// Returns null if allowed == .optional or allowed == .both and arg is missing
 /// Returns error.Incorrect if allowed == .incorrect or allowed == .both and arg is not a number
