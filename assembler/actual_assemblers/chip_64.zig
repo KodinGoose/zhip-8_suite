@@ -114,362 +114,354 @@ fn assembleInstructions(
             break;
         }
 
-        // Actual assembling
-        while (splt_line.next()) |str| {
-            if (str.len == 0) {
+        const assembly_opcode = (try getStr(allocator, error_writer, &splt_line, line_number.*, .optional)) orelse continue :line_loop;
+        defer allocator.free(assembly_opcode);
+
+        if (eql(assembly_opcode, "halt")) {
+            try binary.append(allocator, 0x00);
+            binary_index.* += 1;
+        } else if (eql(assembly_opcode, "exit")) {
+            try binary.append(allocator, 0x01);
+            binary_index.* += 1;
+        } else if (eql(assembly_opcode, "clear")) {
+            try binary.append(allocator, 0x02);
+            binary_index.* += 1;
+        } else if (eql(assembly_opcode, "return")) {
+            try binary.append(allocator, 0x03);
+            binary_index.* += 1;
+        } else if (eql(assembly_opcode, "resolution")) {
+            try binary.append(allocator, 0x04);
+            binary_index.* += 1;
+
+            try binary.appendSlice(allocator, &@as([2]u8, @bitCast(getInt(allocator, error_writer, u16, &splt_line, line_number.*, .strict, .big) catch |err| {
+                if (err == error.ErrorPrinted) continue :line_loop else return err;
+            } orelse unreachable)));
+            binary_index.* += 2;
+
+            try binary.appendSlice(allocator, &@as([2]u8, @bitCast(getInt(allocator, error_writer, u16, &splt_line, line_number.*, .strict, .big) catch |err| {
+                if (err == error.ErrorPrinted) continue :line_loop else return err;
+            } orelse unreachable)));
+            binary_index.* += 2;
+        } else if (eql(assembly_opcode, "scroll")) {
+            const arg = (try getStr(allocator, error_writer, &splt_line, line_number.*, .strict)).?;
+            defer allocator.free(arg);
+            if (eql(arg, "up")) {
+                try binary.append(allocator, 0x05);
+            } else if (eql(arg, "right")) {
+                try binary.append(allocator, 0x06);
+            } else if (eql(arg, "down")) {
+                try binary.append(allocator, 0x07);
+            } else if (eql(arg, "left")) {
+                try binary.append(allocator, 0x08);
+            } else {
+                ErrorHandler.printAssembleError(error_writer, "Incorrect argument", line_number.*) catch continue :line_loop;
+                continue :line_loop;
+            }
+            binary_index.* += 1;
+
+            try binary.appendSlice(allocator, &@as([2]u8, @bitCast(getInt(allocator, error_writer, u16, &splt_line, line_number.*, .strict, .big) catch |err| {
+                if (err == error.ErrorPrinted) continue :line_loop else return err;
+            } orelse unreachable)));
+            binary_index.* += 2;
+        } else if (eql(assembly_opcode, "jump")) blk: {
+            try binary.append(allocator, 0x10);
+            const instruction_index: usize = binary.items.len - 1;
+            binary_index.* += 1;
+
+            try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
+                if (err == error.ErrorPrinted) continue :line_loop else return err;
+            })));
+            binary_index.* += 8;
+
+            const opt_num: ?u16 = getInt(allocator, error_writer, u16, &splt_line, line_number.*, .optional, .big) catch |err| {
+                if (err == error.ErrorPrinted) continue :line_loop else return err;
+            };
+            if (opt_num == null) break :blk;
+            try binary.appendSlice(allocator, &@as([2]u8, @bitCast(opt_num.?)));
+            binary_index.* += 2;
+
+            const arg = (try getStr(allocator, error_writer, &splt_line, line_number.*, .strict)).?;
+            defer allocator.free(arg);
+            if (!eql(arg, "if")) {
+                ErrorHandler.printAssembleError(error_writer, "Incorrect argument", line_number.*) catch continue :line_loop;
+            }
+            try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
+                if (err == error.ErrorPrinted) continue :line_loop else return err;
+            })));
+            binary_index.* += 8;
+
+            const arg2 = (try getStr(allocator, error_writer, &splt_line, line_number.*, .strict)).?;
+            defer allocator.free(arg2);
+            if (eql(arg2, "<")) {
+                binary.items[instruction_index] += 1;
+            } else if (eql(arg2, "<=")) {
+                binary.items[instruction_index] += 2;
+            } else if (eql(arg2, ">")) {
+                binary.items[instruction_index] += 3;
+            } else if (eql(arg2, ">=")) {
+                binary.items[instruction_index] += 4;
+            } else if (eql(arg2, "==")) {
+                binary.items[instruction_index] += 5;
+            } else if (eql(arg2, "!=")) {
+                binary.items[instruction_index] += 6;
+            } else {
+                ErrorHandler.printAssembleError(error_writer, "Incorrect argument", line_number.*) catch continue :line_loop;
+            }
+            try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
+                if (err == error.ErrorPrinted) continue :line_loop else return err;
+            })));
+            binary_index.* += 8;
+        } else if (eql(assembly_opcode, "call")) {
+            try binary.append(allocator, 0x17);
+            binary_index.* += 1;
+            try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
+                if (err == error.ErrorPrinted) continue :line_loop else return err;
+            })));
+            binary_index.* += 8;
+        } else if (eql(assembly_opcode, "reserve")) {
+            const T_int: u16 = getInt(allocator, error_writer, u16, &splt_line, line_number.*, .strict, cpu_endianness) catch |err| {
+                if (err == error.ErrorPrinted) continue :line_loop else return err;
+            } orelse unreachable;
+            const opt_amt: ?usize = getInt(allocator, error_writer, usize, &splt_line, line_number.*, .optional, cpu_endianness) catch |err| {
+                if (err == error.ErrorPrinted) continue :line_loop else return err;
+            };
+            if (opt_amt != null) {
+                try binary.resize(allocator, binary.items.len + @as(usize, T_int) * opt_amt.?);
+                binary_index.* += @as(usize, T_int) * opt_amt.?;
+            } else {
+                try binary.resize(allocator, binary.items.len + T_int);
+                binary_index.* += T_int;
+            }
+        } else if (eql(assembly_opcode, "create")) {
+            const T_int: u16 = getInt(allocator, error_writer, u16, &splt_line, line_number.*, .strict, cpu_endianness) catch |err| {
+                if (err == error.ErrorPrinted) continue :line_loop else return err;
+            } orelse unreachable;
+
+            var amt_of_values: usize = 0;
+            var bigints = try std.ArrayListUnmanaged(BigInt).initCapacity(allocator, 8);
+            defer bigints.deinit(allocator);
+            defer for (bigints.items) |*bigint| bigint.deinit(allocator);
+
+            while (true) {
+                var opt_value: ?BigInt = getBigInt(allocator, error_writer, T_int, &splt_line, line_number.*, .optional) catch |err| {
+                    if (err == error.ErrorPrinted) continue :line_loop else return err;
+                };
+                if (opt_value != null) {
+                    errdefer opt_value.?.deinit(allocator);
+                    try bigints.append(allocator, opt_value.?);
+                    amt_of_values += 1;
+                } else {
+                    break;
+                }
+            }
+
+            var tmp_i: usize = binary.items.len;
+            try binary.resize(allocator, binary.items.len + T_int * amt_of_values);
+            for (bigints.items) |bigint| {
+                bigint.writeBigEndian(binary.items[tmp_i .. tmp_i + T_int]);
+                tmp_i += T_int;
+            }
+            binary_index.* += T_int * amt_of_values;
+            std.debug.assert(binary_index.* == binary.items.len);
+        } else if (eql(assembly_opcode, "alloc")) blk: {
+            try binary.append(allocator, 0x20);
+            const instruction_index: usize = binary.items.len - 1;
+            binary_index.* += 1;
+            try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
+                if (err == error.ErrorPrinted) continue :line_loop else return err;
+            })));
+            binary_index.* += 8;
+            try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getInt(allocator, error_writer, u64, &splt_line, line_number.*, .incorrect, .big) catch |err| {
+                if (err == error.Incorrect) {
+                    try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err2| {
+                        if (err2 == error.ErrorPrinted) continue :line_loop else return err2;
+                    })));
+                    binary_index.* += 8;
+                    binary.items[instruction_index] += 1;
+                    break :blk;
+                } else if (err == error.ErrorPrinted) continue :line_loop else return err;
+            } orelse unreachable)));
+            binary_index.* += 8;
+        } else if (eql(assembly_opcode, "set")) blk: {
+            try binary.append(allocator, 0x30);
+            const instruction_index: usize = binary.items.len - 1;
+            binary_index.* += 1;
+            const T_int: u16 = getInt(allocator, error_writer, u16, &splt_line, line_number.*, .strict, cpu_endianness) catch |err| {
+                if (err == error.ErrorPrinted) continue :line_loop else return err;
+            } orelse unreachable;
+            try binary.appendSlice(allocator, &@as([2]u8, @bitCast(std.mem.nativeToBig(u16, T_int))));
+            binary_index.* += 2;
+
+            try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
+                if (err == error.ErrorPrinted) continue :line_loop else return err;
+            })));
+            binary_index.* += 8;
+            var bigint = getBigInt(allocator, error_writer, T_int, &splt_line, line_number.*, .incorrect) catch |err| {
+                if (err == error.Incorrect) {
+                    try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err2| {
+                        if (err2 == error.ErrorPrinted) continue :line_loop else return err2;
+                    })));
+                    binary_index.* += 8;
+                    binary.items[instruction_index] += 1;
+                    break :blk;
+                } else if (err == error.ErrorPrinted) continue :line_loop else return err;
+            } orelse unreachable;
+            defer bigint.deinit(allocator);
+            try binary.resize(allocator, binary.items.len + T_int);
+            bigint.writeBigEndian(binary.items[binary.items.len - T_int ..]);
+            binary_index.* += T_int;
+        } else if (eql(assembly_opcode, "add")) blk: {
+            try binary.append(allocator, 0x40);
+            const instruction_index: usize = binary.items.len - 1;
+            binary_index.* += 1;
+            const T_int: u16 = getInt(allocator, error_writer, u16, &splt_line, line_number.*, .strict, cpu_endianness) catch |err| {
+                if (err == error.ErrorPrinted) continue :line_loop else return err;
+            } orelse unreachable;
+            try binary.appendSlice(allocator, &@as([2]u8, @bitCast(std.mem.nativeToBig(u16, T_int))));
+            binary_index.* += 2;
+
+            try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
+                if (err == error.ErrorPrinted) continue :line_loop else return err;
+            })));
+            binary_index.* += 8;
+            var bigint = getBigInt(allocator, error_writer, T_int, &splt_line, line_number.*, .incorrect) catch |err| {
+                if (err == error.Incorrect) {
+                    try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err2| {
+                        if (err2 == error.ErrorPrinted) continue :line_loop else return err2;
+                    })));
+                    binary_index.* += 8;
+                    binary.items[instruction_index] += 1;
+                    break :blk;
+                } else if (err == error.ErrorPrinted) continue :line_loop else return err;
+            } orelse unreachable;
+            defer bigint.deinit(allocator);
+            try binary.resize(allocator, binary.items.len + T_int);
+            bigint.writeBigEndian(binary.items[binary.items.len - T_int ..]);
+            binary_index.* += T_int;
+        } else if (eql(assembly_opcode, "sub")) blk: {
+            try binary.append(allocator, 0x42);
+            const instruction_index: usize = binary.items.len - 1;
+            binary_index.* += 1;
+            const T_int: u16 = getInt(allocator, error_writer, u16, &splt_line, line_number.*, .strict, cpu_endianness) catch |err| {
+                if (err == error.ErrorPrinted) continue :line_loop else return err;
+            } orelse unreachable;
+            try binary.appendSlice(allocator, &@as([2]u8, @bitCast(std.mem.nativeToBig(u16, T_int))));
+            binary_index.* += 2;
+
+            try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
+                if (err == error.ErrorPrinted) continue :line_loop else return err;
+            })));
+            binary_index.* += 8;
+            var bigint = getBigInt(allocator, error_writer, T_int, &splt_line, line_number.*, .incorrect) catch |err| {
+                if (err == error.Incorrect) {
+                    try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err2| {
+                        if (err2 == error.ErrorPrinted) continue :line_loop else return err2;
+                    })));
+                    binary_index.* += 8;
+                    binary.items[instruction_index] += 1;
+                    break :blk;
+                } else if (err == error.ErrorPrinted) continue :line_loop else return err;
+            } orelse unreachable;
+            defer bigint.deinit(allocator);
+            try binary.resize(allocator, binary.items.len + T_int);
+            bigint.writeBigEndian(binary.items[binary.items.len - T_int ..]);
+            binary_index.* += T_int;
+        } else if (eql(assembly_opcode, "mul")) blk: {
+            try binary.append(allocator, 0x44);
+            const instruction_index: usize = binary.items.len - 1;
+            binary_index.* += 1;
+            const T_int: u16 = getInt(allocator, error_writer, u16, &splt_line, line_number.*, .strict, cpu_endianness) catch |err| {
+                if (err == error.ErrorPrinted) continue :line_loop else return err;
+            } orelse unreachable;
+            try binary.appendSlice(allocator, &@as([2]u8, @bitCast(std.mem.nativeToBig(u16, T_int))));
+            binary_index.* += 2;
+
+            try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
+                if (err == error.ErrorPrinted) continue :line_loop else return err;
+            })));
+            binary_index.* += 8;
+            var bigint = getBigInt(allocator, error_writer, T_int, &splt_line, line_number.*, .incorrect) catch |err| {
+                if (err == error.Incorrect) {
+                    try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err2| {
+                        if (err2 == error.ErrorPrinted) continue :line_loop else return err2;
+                    })));
+                    binary_index.* += 8;
+                    binary.items[instruction_index] += 1;
+                    break :blk;
+                } else if (err == error.ErrorPrinted) continue :line_loop else return err;
+            } orelse unreachable;
+            defer bigint.deinit(allocator);
+            try binary.resize(allocator, binary.items.len + T_int);
+            bigint.writeBigEndian(binary.items[binary.items.len - T_int ..]);
+            binary_index.* += T_int;
+        } else if (eql(assembly_opcode, "div")) blk: {
+            try binary.append(allocator, 0x46);
+            const instruction_index: usize = binary.items.len - 1;
+            binary_index.* += 1;
+            const T_int: u16 = getInt(allocator, error_writer, u16, &splt_line, line_number.*, .strict, cpu_endianness) catch |err| {
+                if (err == error.ErrorPrinted) continue :line_loop else return err;
+            } orelse unreachable;
+            try binary.appendSlice(allocator, &@as([2]u8, @bitCast(std.mem.nativeToBig(u16, T_int))));
+            binary_index.* += 2;
+
+            try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
+                if (err == error.ErrorPrinted) continue :line_loop else return err;
+            })));
+            binary_index.* += 8;
+            var bigint = getBigInt(allocator, error_writer, T_int, &splt_line, line_number.*, .incorrect) catch |err| {
+                if (err == error.Incorrect) {
+                    try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err2| {
+                        if (err2 == error.ErrorPrinted) continue :line_loop else return err2;
+                    })));
+                    binary_index.* += 8;
+                    binary.items[instruction_index] += 1;
+                    break :blk;
+                } else if (err == error.ErrorPrinted) continue :line_loop else return err;
+            } orelse unreachable;
+            defer bigint.deinit(allocator);
+            try binary.resize(allocator, binary.items.len + T_int);
+            bigint.writeBigEndian(binary.items[binary.items.len - T_int ..]);
+            binary_index.* += T_int;
+        } else if (eql(assembly_opcode, "mod")) blk: {
+            try binary.append(allocator, 0x48);
+            const instruction_index: usize = binary.items.len - 1;
+            binary_index.* += 1;
+            const T_int: u16 = getInt(allocator, error_writer, u16, &splt_line, line_number.*, .strict, cpu_endianness) catch |err| {
+                if (err == error.ErrorPrinted) continue :line_loop else return err;
+            } orelse unreachable;
+            try binary.appendSlice(allocator, &@as([2]u8, @bitCast(std.mem.nativeToBig(u16, T_int))));
+            binary_index.* += 2;
+
+            try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
+                if (err == error.ErrorPrinted) continue :line_loop else return err;
+            })));
+            binary_index.* += 8;
+            var bigint = getBigInt(allocator, error_writer, T_int, &splt_line, line_number.*, .incorrect) catch |err| {
+                if (err == error.Incorrect) {
+                    try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err2| {
+                        if (err2 == error.ErrorPrinted) continue :line_loop else return err2;
+                    })));
+                    binary_index.* += 8;
+                    binary.items[instruction_index] += 1;
+                    break :blk;
+                } else if (err == error.ErrorPrinted) continue :line_loop else return err;
+            } orelse unreachable;
+            defer bigint.deinit(allocator);
+            try binary.resize(allocator, binary.items.len + T_int);
+            bigint.writeBigEndian(binary.items[binary.items.len - T_int ..]);
+            binary_index.* += T_int;
+        } else {
+            ErrorHandler.printAssembleError(error_writer, "Invalid opcode", line_number.*) catch {};
+            continue :line_loop;
+        }
+
+        while (splt_line.next()) |nono| {
+            if (nono.len == 0) {
                 continue;
             }
-
-            if (str[0] == '#') continue :line_loop;
-
-            const assembly_opcode = try String.toLowerCase(allocator, str);
-            defer allocator.free(assembly_opcode);
-            if (eql(assembly_opcode, "halt")) {
-                try binary.append(allocator, 0x00);
-                binary_index.* += 1;
-            } else if (eql(assembly_opcode, "exit")) {
-                try binary.append(allocator, 0x01);
-                binary_index.* += 1;
-            } else if (eql(assembly_opcode, "clear")) {
-                try binary.append(allocator, 0x02);
-                binary_index.* += 1;
-            } else if (eql(assembly_opcode, "return")) {
-                try binary.append(allocator, 0x03);
-                binary_index.* += 1;
-            } else if (eql(assembly_opcode, "resolution")) {
-                try binary.append(allocator, 0x04);
-                binary_index.* += 1;
-
-                try binary.appendSlice(allocator, &@as([2]u8, @bitCast(getInt(allocator, error_writer, u16, &splt_line, line_number.*, .strict, .big) catch |err| {
-                    if (err == error.ErrorPrinted) continue :line_loop else return err;
-                } orelse unreachable)));
-                binary_index.* += 2;
-
-                try binary.appendSlice(allocator, &@as([2]u8, @bitCast(getInt(allocator, error_writer, u16, &splt_line, line_number.*, .strict, .big) catch |err| {
-                    if (err == error.ErrorPrinted) continue :line_loop else return err;
-                } orelse unreachable)));
-                binary_index.* += 2;
-            } else if (eql(assembly_opcode, "scroll")) {
-                const arg = (try getStr(allocator, error_writer, &splt_line, line_number.*, .strict)).?;
-                defer allocator.free(arg);
-                if (eql(arg, "up")) {
-                    try binary.append(allocator, 0x05);
-                } else if (eql(arg, "right")) {
-                    try binary.append(allocator, 0x06);
-                } else if (eql(arg, "down")) {
-                    try binary.append(allocator, 0x07);
-                } else if (eql(arg, "left")) {
-                    try binary.append(allocator, 0x08);
-                } else {
-                    ErrorHandler.printAssembleError(error_writer, "Incorrect argument", line_number.*) catch continue :line_loop;
-                    continue :line_loop;
-                }
-                binary_index.* += 1;
-
-                try binary.appendSlice(allocator, &@as([2]u8, @bitCast(getInt(allocator, error_writer, u16, &splt_line, line_number.*, .strict, .big) catch |err| {
-                    if (err == error.ErrorPrinted) continue :line_loop else return err;
-                } orelse unreachable)));
-                binary_index.* += 2;
-            } else if (eql(assembly_opcode, "jump")) blk: {
-                try binary.append(allocator, 0x10);
-                const instruction_index: usize = binary.items.len - 1;
-                binary_index.* += 1;
-
-                try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
-                    if (err == error.ErrorPrinted) continue :line_loop else return err;
-                })));
-                binary_index.* += 8;
-
-                const opt_num: ?u16 = getInt(allocator, error_writer, u16, &splt_line, line_number.*, .optional, .big) catch |err| {
-                    if (err == error.ErrorPrinted) continue :line_loop else return err;
-                };
-                if (opt_num == null) break :blk;
-                try binary.appendSlice(allocator, &@as([2]u8, @bitCast(opt_num.?)));
-                binary_index.* += 2;
-
-                const arg = (try getStr(allocator, error_writer, &splt_line, line_number.*, .strict)).?;
-                defer allocator.free(arg);
-                if (!eql(arg, "if")) {
-                    ErrorHandler.printAssembleError(error_writer, "Incorrect argument", line_number.*) catch continue :line_loop;
-                }
-                try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
-                    if (err == error.ErrorPrinted) continue :line_loop else return err;
-                })));
-                binary_index.* += 8;
-
-                const arg2 = (try getStr(allocator, error_writer, &splt_line, line_number.*, .strict)).?;
-                defer allocator.free(arg2);
-                if (eql(arg2, "<")) {
-                    binary.items[instruction_index] += 1;
-                } else if (eql(arg2, "<=")) {
-                    binary.items[instruction_index] += 2;
-                } else if (eql(arg2, ">")) {
-                    binary.items[instruction_index] += 3;
-                } else if (eql(arg2, ">=")) {
-                    binary.items[instruction_index] += 4;
-                } else if (eql(arg2, "==")) {
-                    binary.items[instruction_index] += 5;
-                } else if (eql(arg2, "!=")) {
-                    binary.items[instruction_index] += 6;
-                } else {
-                    ErrorHandler.printAssembleError(error_writer, "Incorrect argument", line_number.*) catch continue :line_loop;
-                }
-                try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
-                    if (err == error.ErrorPrinted) continue :line_loop else return err;
-                })));
-                binary_index.* += 8;
-            } else if (eql(assembly_opcode, "call")) {
-                try binary.append(allocator, 0x17);
-                binary_index.* += 1;
-                try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
-                    if (err == error.ErrorPrinted) continue :line_loop else return err;
-                })));
-                binary_index.* += 8;
-            } else if (eql(assembly_opcode, "reserve")) {
-                const T_int: u16 = getInt(allocator, error_writer, u16, &splt_line, line_number.*, .strict, cpu_endianness) catch |err| {
-                    if (err == error.ErrorPrinted) continue :line_loop else return err;
-                } orelse unreachable;
-                const opt_amt: ?usize = getInt(allocator, error_writer, usize, &splt_line, line_number.*, .optional, cpu_endianness) catch |err| {
-                    if (err == error.ErrorPrinted) continue :line_loop else return err;
-                };
-                if (opt_amt != null) {
-                    try binary.resize(allocator, binary.items.len + @as(usize, T_int) * opt_amt.?);
-                    binary_index.* += @as(usize, T_int) * opt_amt.?;
-                } else {
-                    try binary.resize(allocator, binary.items.len + T_int);
-                    binary_index.* += T_int;
-                }
-            } else if (eql(assembly_opcode, "create")) {
-                const T_int: u16 = getInt(allocator, error_writer, u16, &splt_line, line_number.*, .strict, cpu_endianness) catch |err| {
-                    if (err == error.ErrorPrinted) continue :line_loop else return err;
-                } orelse unreachable;
-
-                var amt_of_values: usize = 0;
-                var bigints = try std.ArrayListUnmanaged(BigInt).initCapacity(allocator, 8);
-                defer bigints.deinit(allocator);
-                defer for (bigints.items) |*bigint| bigint.deinit(allocator);
-
-                while (true) {
-                    var opt_value: ?BigInt = getBigInt(allocator, error_writer, T_int, &splt_line, line_number.*, .optional) catch |err| {
-                        if (err == error.ErrorPrinted) continue :line_loop else return err;
-                    };
-                    if (opt_value != null) {
-                        errdefer opt_value.?.deinit(allocator);
-                        try bigints.append(allocator, opt_value.?);
-                        amt_of_values += 1;
-                    } else {
-                        break;
-                    }
-                }
-
-                var tmp_i: usize = binary.items.len;
-                try binary.resize(allocator, binary.items.len + T_int * amt_of_values);
-                for (bigints.items) |bigint| {
-                    bigint.writeBigEndian(binary.items[tmp_i .. tmp_i + T_int]);
-                    tmp_i += T_int;
-                }
-                binary_index.* += T_int * amt_of_values;
-                std.debug.assert(binary_index.* == binary.items.len);
-            } else if (eql(assembly_opcode, "alloc")) blk: {
-                try binary.append(allocator, 0x20);
-                const instruction_index: usize = binary.items.len - 1;
-                binary_index.* += 1;
-                try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
-                    if (err == error.ErrorPrinted) continue :line_loop else return err;
-                })));
-                binary_index.* += 8;
-                try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getInt(allocator, error_writer, u64, &splt_line, line_number.*, .incorrect, .big) catch |err| {
-                    if (err == error.Incorrect) {
-                        try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err2| {
-                            if (err2 == error.ErrorPrinted) continue :line_loop else return err2;
-                        })));
-                        binary_index.* += 8;
-                        binary.items[instruction_index] += 1;
-                        break :blk;
-                    } else if (err == error.ErrorPrinted) continue :line_loop else return err;
-                } orelse unreachable)));
-                binary_index.* += 8;
-            } else if (eql(assembly_opcode, "set")) blk: {
-                try binary.append(allocator, 0x30);
-                const instruction_index: usize = binary.items.len - 1;
-                binary_index.* += 1;
-                const T_int: u16 = getInt(allocator, error_writer, u16, &splt_line, line_number.*, .strict, cpu_endianness) catch |err| {
-                    if (err == error.ErrorPrinted) continue :line_loop else return err;
-                } orelse unreachable;
-                try binary.appendSlice(allocator, &@as([2]u8, @bitCast(std.mem.nativeToBig(u16, T_int))));
-                binary_index.* += 2;
-
-                try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
-                    if (err == error.ErrorPrinted) continue :line_loop else return err;
-                })));
-                binary_index.* += 8;
-                var bigint = getBigInt(allocator, error_writer, T_int, &splt_line, line_number.*, .incorrect) catch |err| {
-                    if (err == error.Incorrect) {
-                        try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err2| {
-                            if (err2 == error.ErrorPrinted) continue :line_loop else return err2;
-                        })));
-                        binary_index.* += 8;
-                        binary.items[instruction_index] += 1;
-                        break :blk;
-                    } else if (err == error.ErrorPrinted) continue :line_loop else return err;
-                } orelse unreachable;
-                defer bigint.deinit(allocator);
-                try binary.resize(allocator, binary.items.len + T_int);
-                bigint.writeBigEndian(binary.items[binary.items.len - T_int ..]);
-                binary_index.* += T_int;
-            } else if (eql(assembly_opcode, "add")) blk: {
-                try binary.append(allocator, 0x40);
-                const instruction_index: usize = binary.items.len - 1;
-                binary_index.* += 1;
-                const T_int: u16 = getInt(allocator, error_writer, u16, &splt_line, line_number.*, .strict, cpu_endianness) catch |err| {
-                    if (err == error.ErrorPrinted) continue :line_loop else return err;
-                } orelse unreachable;
-                try binary.appendSlice(allocator, &@as([2]u8, @bitCast(std.mem.nativeToBig(u16, T_int))));
-                binary_index.* += 2;
-
-                try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
-                    if (err == error.ErrorPrinted) continue :line_loop else return err;
-                })));
-                binary_index.* += 8;
-                var bigint = getBigInt(allocator, error_writer, T_int, &splt_line, line_number.*, .incorrect) catch |err| {
-                    if (err == error.Incorrect) {
-                        try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err2| {
-                            if (err2 == error.ErrorPrinted) continue :line_loop else return err2;
-                        })));
-                        binary_index.* += 8;
-                        binary.items[instruction_index] += 1;
-                        break :blk;
-                    } else if (err == error.ErrorPrinted) continue :line_loop else return err;
-                } orelse unreachable;
-                defer bigint.deinit(allocator);
-                try binary.resize(allocator, binary.items.len + T_int);
-                bigint.writeBigEndian(binary.items[binary.items.len - T_int ..]);
-                binary_index.* += T_int;
-            } else if (eql(assembly_opcode, "sub")) blk: {
-                try binary.append(allocator, 0x42);
-                const instruction_index: usize = binary.items.len - 1;
-                binary_index.* += 1;
-                const T_int: u16 = getInt(allocator, error_writer, u16, &splt_line, line_number.*, .strict, cpu_endianness) catch |err| {
-                    if (err == error.ErrorPrinted) continue :line_loop else return err;
-                } orelse unreachable;
-                try binary.appendSlice(allocator, &@as([2]u8, @bitCast(std.mem.nativeToBig(u16, T_int))));
-                binary_index.* += 2;
-
-                try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
-                    if (err == error.ErrorPrinted) continue :line_loop else return err;
-                })));
-                binary_index.* += 8;
-                var bigint = getBigInt(allocator, error_writer, T_int, &splt_line, line_number.*, .incorrect) catch |err| {
-                    if (err == error.Incorrect) {
-                        try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err2| {
-                            if (err2 == error.ErrorPrinted) continue :line_loop else return err2;
-                        })));
-                        binary_index.* += 8;
-                        binary.items[instruction_index] += 1;
-                        break :blk;
-                    } else if (err == error.ErrorPrinted) continue :line_loop else return err;
-                } orelse unreachable;
-                defer bigint.deinit(allocator);
-                try binary.resize(allocator, binary.items.len + T_int);
-                bigint.writeBigEndian(binary.items[binary.items.len - T_int ..]);
-                binary_index.* += T_int;
-            } else if (eql(assembly_opcode, "mul")) blk: {
-                try binary.append(allocator, 0x44);
-                const instruction_index: usize = binary.items.len - 1;
-                binary_index.* += 1;
-                const T_int: u16 = getInt(allocator, error_writer, u16, &splt_line, line_number.*, .strict, cpu_endianness) catch |err| {
-                    if (err == error.ErrorPrinted) continue :line_loop else return err;
-                } orelse unreachable;
-                try binary.appendSlice(allocator, &@as([2]u8, @bitCast(std.mem.nativeToBig(u16, T_int))));
-                binary_index.* += 2;
-
-                try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
-                    if (err == error.ErrorPrinted) continue :line_loop else return err;
-                })));
-                binary_index.* += 8;
-                var bigint = getBigInt(allocator, error_writer, T_int, &splt_line, line_number.*, .incorrect) catch |err| {
-                    if (err == error.Incorrect) {
-                        try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err2| {
-                            if (err2 == error.ErrorPrinted) continue :line_loop else return err2;
-                        })));
-                        binary_index.* += 8;
-                        binary.items[instruction_index] += 1;
-                        break :blk;
-                    } else if (err == error.ErrorPrinted) continue :line_loop else return err;
-                } orelse unreachable;
-                defer bigint.deinit(allocator);
-                try binary.resize(allocator, binary.items.len + T_int);
-                bigint.writeBigEndian(binary.items[binary.items.len - T_int ..]);
-                binary_index.* += T_int;
-            } else if (eql(assembly_opcode, "div")) blk: {
-                try binary.append(allocator, 0x46);
-                const instruction_index: usize = binary.items.len - 1;
-                binary_index.* += 1;
-                const T_int: u16 = getInt(allocator, error_writer, u16, &splt_line, line_number.*, .strict, cpu_endianness) catch |err| {
-                    if (err == error.ErrorPrinted) continue :line_loop else return err;
-                } orelse unreachable;
-                try binary.appendSlice(allocator, &@as([2]u8, @bitCast(std.mem.nativeToBig(u16, T_int))));
-                binary_index.* += 2;
-
-                try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
-                    if (err == error.ErrorPrinted) continue :line_loop else return err;
-                })));
-                binary_index.* += 8;
-                var bigint = getBigInt(allocator, error_writer, T_int, &splt_line, line_number.*, .incorrect) catch |err| {
-                    if (err == error.Incorrect) {
-                        try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err2| {
-                            if (err2 == error.ErrorPrinted) continue :line_loop else return err2;
-                        })));
-                        binary_index.* += 8;
-                        binary.items[instruction_index] += 1;
-                        break :blk;
-                    } else if (err == error.ErrorPrinted) continue :line_loop else return err;
-                } orelse unreachable;
-                defer bigint.deinit(allocator);
-                try binary.resize(allocator, binary.items.len + T_int);
-                bigint.writeBigEndian(binary.items[binary.items.len - T_int ..]);
-                binary_index.* += T_int;
-            } else if (eql(assembly_opcode, "mod")) blk: {
-                try binary.append(allocator, 0x48);
-                const instruction_index: usize = binary.items.len - 1;
-                binary_index.* += 1;
-                const T_int: u16 = getInt(allocator, error_writer, u16, &splt_line, line_number.*, .strict, cpu_endianness) catch |err| {
-                    if (err == error.ErrorPrinted) continue :line_loop else return err;
-                } orelse unreachable;
-                try binary.appendSlice(allocator, &@as([2]u8, @bitCast(std.mem.nativeToBig(u16, T_int))));
-                binary_index.* += 2;
-
-                try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
-                    if (err == error.ErrorPrinted) continue :line_loop else return err;
-                })));
-                binary_index.* += 8;
-                var bigint = getBigInt(allocator, error_writer, T_int, &splt_line, line_number.*, .incorrect) catch |err| {
-                    if (err == error.Incorrect) {
-                        try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err2| {
-                            if (err2 == error.ErrorPrinted) continue :line_loop else return err2;
-                        })));
-                        binary_index.* += 8;
-                        binary.items[instruction_index] += 1;
-                        break :blk;
-                    } else if (err == error.ErrorPrinted) continue :line_loop else return err;
-                } orelse unreachable;
-                defer bigint.deinit(allocator);
-                try binary.resize(allocator, binary.items.len + T_int);
-                bigint.writeBigEndian(binary.items[binary.items.len - T_int ..]);
-                binary_index.* += T_int;
-            } else {
-                ErrorHandler.printAssembleError(error_writer, "Invalid opcode", line_number.*) catch {};
-                continue :line_loop;
-            }
-
-            while (splt_line.next()) |nono| {
-                if (nono.len == 0) {
-                    continue;
-                }
-                if (nono[0] == '#') continue :line_loop;
-                ErrorHandler.printAssembleError(error_writer, "Too many arguments", line_number.*) catch {};
-                continue :line_loop;
-            }
+            if (nono[0] == '#') continue :line_loop;
+            ErrorHandler.printAssembleError(error_writer, "Too many arguments", line_number.*) catch {};
+            continue :line_loop;
         }
     }
 }
