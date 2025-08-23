@@ -482,19 +482,18 @@ const Allowed = enum(u8) {
 };
 
 /// Returns null if allowed == .optional and arg is missing
+/// Allowed.incrorrect has no effect and is the same as Allowed.strict
 /// Prints error on other errors
 fn getStr(
     allocator: std.mem.Allocator,
     error_writer: *std.Io.Writer,
     splt_line: *std.mem.SplitIterator(u8, .scalar),
     line_number: usize,
-    /// value must be Allowed.strict of Allowed.optional
     allowed: Allowed,
 ) !?[]u8 {
-    std.debug.assert(allowed == .strict or allowed == .optional);
     while (true) {
         const str = splt_line.peek() orelse {
-            if (allowed == .optional) {
+            if (allowed == .optional or allowed == .both) {
                 return null;
             } else {
                 return ErrorHandler.printAssembleError(error_writer, "Missing argument(s)", line_number);
@@ -512,6 +511,36 @@ fn getStr(
     }
 }
 
+/// Returns null if allowed == .optional and arg is missing
+/// Allowed.incrorrect has no effect and is the same as Allowed.strict
+/// Prints error on other errors
+/// Does not go onto the next string on success
+fn getStrPeek(
+    allocator: std.mem.Allocator,
+    error_writer: *std.Io.Writer,
+    splt_line: *std.mem.SplitIterator(u8, .scalar),
+    line_number: usize,
+    allowed: Allowed,
+) !?[]u8 {
+    while (true) {
+        const str = splt_line.peek() orelse {
+            if (allowed == .optional or allowed == .both) {
+                return null;
+            } else {
+                return ErrorHandler.printAssembleError(error_writer, "Missing argument(s)", line_number);
+            }
+        };
+
+        if (str.len == 0) {
+            _ = splt_line.next();
+            continue;
+        }
+        const low_str = try String.toLowerCase(allocator, str);
+
+        return low_str;
+    }
+}
+
 /// Returns null if allowed == .optional or allowed == .both and arg is missing
 /// Returns error.Incorrect if allowed == .incorrect or allowed == .both and arg is not a number
 /// Prints error on other errors
@@ -525,35 +554,21 @@ fn getInt(
     /// What endiannes the returned integer should have
     desired_endianness: std.builtin.Endian,
 ) !?T {
-    while (true) {
-        const str = splt_line.peek() orelse {
-            if (allowed == .optional or allowed == .both) {
-                return null;
-            } else {
-                return ErrorHandler.printAssembleError(error_writer, "Missing argument(s)", line_number);
-            }
-        };
+    const str = (try getStrPeek(allocator, error_writer, splt_line, line_number, allowed)) orelse return null;
+    defer allocator.free(str);
 
-        if (str.len == 0) {
-            _ = splt_line.next();
-            continue;
+    const int = String.intFromString(T, str) catch |err| {
+        if ((allowed == .incorrect or allowed == .both) and err == error.NotInteger) {
+            return error.Incorrect;
+        } else {
+            const concated = try Array.concat(allocator, u8, "Can't convert string to integer: ", @errorName(err));
+            defer allocator.free(concated);
+            return ErrorHandler.printAssembleError(error_writer, concated, line_number);
         }
-        const low_str = try String.toLowerCase(allocator, str);
-        defer allocator.free(low_str);
+    };
 
-        const int = String.intFromString(T, low_str) catch |err| {
-            if ((allowed == .incorrect or allowed == .both) and err == error.NotInteger) {
-                return error.Incorrect;
-            } else {
-                const concated = try Array.concat(allocator, u8, "Can't convert string to integer: ", @errorName(err));
-                defer allocator.free(concated);
-                return ErrorHandler.printAssembleError(error_writer, concated, line_number);
-            }
-        };
-
-        _ = splt_line.next();
-        return std.mem.nativeTo(T, int, desired_endianness);
-    }
+    _ = splt_line.next();
+    return std.mem.nativeTo(T, int, desired_endianness);
 }
 
 /// Returns null if allowed == .optional or allowed == .both and arg is missing
@@ -567,35 +582,21 @@ fn getBigInt(
     line_number: usize,
     allowed: Allowed,
 ) !?BigInt {
-    while (true) {
-        const str = splt_line.peek() orelse {
-            if (allowed == .optional or allowed == .both) {
-                return null;
-            } else {
-                return ErrorHandler.printAssembleError(error_writer, "Missing argument(s)", line_number);
-            }
-        };
+    const str = (try getStrPeek(allocator, error_writer, splt_line, line_number, allowed)) orelse return null;
+    defer allocator.free(str);
 
-        if (str.len == 0) {
-            _ = splt_line.next();
-            continue;
+    const bigint = String.bigintFromString(allocator, byte_length, str) catch |err| {
+        if ((allowed == .incorrect or allowed == .both) and err == error.NotInteger) {
+            return error.Incorrect;
+        } else {
+            const concated = try Array.concat(allocator, u8, "Can't convert string to integer: ", @errorName(err));
+            defer allocator.free(concated);
+            return ErrorHandler.printAssembleError(error_writer, concated, line_number);
         }
-        const low_str = try String.toLowerCase(allocator, str);
-        defer allocator.free(low_str);
+    };
 
-        const bigint = String.bigintFromString(allocator, byte_length, low_str) catch |err| {
-            if ((allowed == .incorrect or allowed == .both) and err == error.NotInteger) {
-                return error.Incorrect;
-            } else {
-                const concated = try Array.concat(allocator, u8, "Can't convert string to integer: ", @errorName(err));
-                defer allocator.free(concated);
-                return ErrorHandler.printAssembleError(error_writer, concated, line_number);
-            }
-        };
-
-        _ = splt_line.next();
-        return bigint;
-    }
+    _ = splt_line.next();
+    return bigint;
 }
 
 /// Returns zero if alias is found
@@ -609,47 +610,37 @@ fn getAddress(
     binary_index: usize,
     alias_calls: *std.ArrayListUnmanaged(AliasCall),
 ) !u64 {
-    while (true) {
-        const str = splt_line.peek() orelse {
-            return ErrorHandler.printAssembleError(error_writer, "Missing argument(s)", line_number);
-        };
+    const str = (try getStrPeek(allocator, error_writer, splt_line, line_number, .strict)).?;
+    errdefer allocator.free(str);
 
-        if (str.len == 0) {
-            _ = splt_line.next();
-            continue;
+    if (str[0] == ':' and str.len > 1) {
+        if (!String.containsPrintableAsciiOnly(str[1..])) {
+            return ErrorHandler.printAssembleError(error_writer, "Invalid alias", line_number);
         }
-        const low_str = try String.toLowerCase(allocator, str);
-        errdefer allocator.free(low_str);
-
-        if (low_str[0] == ':' and low_str.len > 1) {
-            if (!String.containsPrintableAsciiOnly(low_str[1..])) {
-                return ErrorHandler.printAssembleError(error_writer, "Invalid alias", line_number);
-            }
-            for (low_str[1..], 0..) |char, i| {
-                low_str[i] = char;
-            }
-            try alias_calls.append(allocator, .{
-                .string = try allocator.realloc(low_str, low_str.len - 1),
-                .from = binary_index,
-                .at_line = line_number,
-            });
-
-            _ = splt_line.next();
-            return 0;
-        } else if (low_str[0] == '*' and low_str.len > 1) {
-            const int = std.mem.nativeToBig(u64, String.intFromString(u64, low_str[1..]) catch |err| {
-                const concated = try Array.concat(allocator, u8, "Can't convert string to integer: ", @errorName(err));
-                defer allocator.free(concated);
-                return ErrorHandler.printAssembleError(error_writer, concated, line_number);
-            });
-
-            allocator.free(low_str);
-            _ = splt_line.next();
-            return int;
+        for (str[1..], 0..) |char, i| {
+            str[i] = char;
         }
+        try alias_calls.append(allocator, .{
+            .string = try allocator.realloc(str, str.len - 1),
+            .from = binary_index,
+            .at_line = line_number,
+        });
 
-        return ErrorHandler.printAssembleError(error_writer, "Invalid address or alias", line_number);
+        _ = splt_line.next();
+        return 0;
+    } else if (str[0] == '*' and str.len > 1) {
+        const int = std.mem.nativeToBig(u64, String.intFromString(u64, str[1..]) catch |err| {
+            const concated = try Array.concat(allocator, u8, "Can't convert string to integer: ", @errorName(err));
+            defer allocator.free(concated);
+            return ErrorHandler.printAssembleError(error_writer, concated, line_number);
+        });
+
+        allocator.free(str);
+        _ = splt_line.next();
+        return int;
     }
+
+    return ErrorHandler.printAssembleError(error_writer, "Invalid address or alias", line_number);
 }
 
 fn eql(a: []const u8, b: []const u8) bool {
