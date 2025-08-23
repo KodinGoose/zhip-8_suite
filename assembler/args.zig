@@ -1,10 +1,13 @@
 const std = @import("std");
-const string = @import("string");
+const String = @import("shared").String;
+const ErrorHandler = @import("error.zig");
 
 pub const Build = enum(u8) {
     chip_8,
     schip_1_0,
     schip_1_1,
+    schip_modern,
+    chip_64,
 };
 
 const FileName = struct {
@@ -37,9 +40,10 @@ pub const Args = struct {
     input_file_name: FileName = .{},
     output_file_name: FileName = .{},
     job: enum(u8) { assemble, de_assemble } = .assemble,
-    binary_start_index: u12 = 512,
+    binary_start_index: ?u64 = null,
     use_assembly_like: bool = false,
-    number_base_to_use: string.NumberBase = .hexadecimal,
+    number_base_to_use: String.NumberBase = .hexadecimal,
+    client_mode: bool = false,
 
     pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
         self.input_file_name.deinit(allocator);
@@ -62,23 +66,30 @@ pub fn handleArgs(allocator: std.mem.Allocator) !Args {
         if (arg[0] == '-') {
             for (arg[1..]) |char| {
                 switch (char) {
-                    's' => args.binary_start_index = string.intFromString(u12, args_iter.next() orelse return error.NoNumberForBinaryStartIndexSpecified) catch |err| {
-                        try std.io.getStdOut().writer().writeAll("Invalid number for 'i' arg, number must be a 12 bit integer (0-4095)");
-                        return err;
+                    's' => args.binary_start_index = String.intFromString(u12, args_iter.next() orelse return error.NoNumberForBinaryStartIndexSpecified) catch |err| {
+                        return ErrorHandler.printReturnError(err, "Invalid number for 'i' arg, number must be a 12 bit integer (0-4095)");
                     },
                     'A' => args.use_assembly_like = true,
                     'a' => args.job = .assemble,
                     'd' => args.job = .de_assemble,
-                    'o' => try args.output_file_name.changeName(allocator, args_iter.next() orelse return error.NoOutputFileNameGiven),
+                    'o' => try args.output_file_name.changeName(allocator, args_iter.next() orelse {
+                        return ErrorHandler.printReturnError(error.NoOutputFileName, "An output file name was not given");
+                    }),
                     'B' => {
-                        const build_str = args_iter.next() orelse return error.NoBuildSpecified;
+                        const build_str = args_iter.next() orelse {
+                            return ErrorHandler.printReturnError(error.NoBuildSpecified, "See help text for currently supported builds");
+                        };
                         if (std.mem.eql(u8, build_str, "chip-8")) {
                             args.build = .chip_8;
                         } else if (std.mem.eql(u8, build_str, "schip1.0")) {
                             args.build = .schip_1_0;
                         } else if (std.mem.eql(u8, build_str, "schip1.1")) {
                             args.build = .schip_1_1;
-                        } else return error.BroYourArgumentIsInvalid;
+                        } else if (std.mem.eql(u8, build_str, "schip-modern")) {
+                            args.build = .schip_modern;
+                        } else if (std.mem.eql(u8, build_str, "chip-64")) {
+                            args.build = .chip_64;
+                        } else return ErrorHandler.printReturnError(error.InvalidBuild, "See help text for currently supported builds");
                     },
                     'n' => {
                         const base_str = args_iter.next() orelse return error.NoBaseSpecified;
@@ -90,10 +101,10 @@ pub fn handleArgs(allocator: std.mem.Allocator) !Args {
                             args.number_base_to_use = .decimal;
                         } else if (std.mem.eql(u8, base_str, "hexadecimal")) {
                             args.number_base_to_use = .hexadecimal;
-                        } else return error.BroYourArgumentIsInvalid;
+                        } else return ErrorHandler.printReturnError(error.InvalidBase, "See help text for currently supported bases");
                     },
                     'h' => return error.HelpAsked,
-                    else => return error.BroWhatIsThisArgument,
+                    else => return ErrorHandler.printReturnError(error.InvalidArgument, "Invalid Argument"),
                 }
             }
         } else {
@@ -101,11 +112,11 @@ pub fn handleArgs(allocator: std.mem.Allocator) !Args {
         }
     }
 
-    if (args.input_file_name.name == null) return error.NoFileNameGiven;
+    if (args.input_file_name.name == null) return ErrorHandler.printReturnError(error.NoFileNameGiven, "An input file name must be given");
     if (args.output_file_name.name == null)
         try args.output_file_name.changeName(allocator, if (args.job == .assemble) "out.ch8" else "main.chs");
     if (std.mem.eql(u8, args.input_file_name.name.?, args.output_file_name.name.?))
-        return error.YouGaveTheSameNameForTheInputAndOutputFiles;
+        return ErrorHandler.printReturnError(error.DuplicateFileName, "Must give separate names for input and output files");
 
     return args;
 }

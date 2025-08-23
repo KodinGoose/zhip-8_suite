@@ -1,5 +1,5 @@
 const std = @import("std");
-const string = @import("string");
+const String = @import("shared").String;
 const Line = @import("line.zig").Line;
 const Args = @import("args.zig").Args;
 const Build = @import("args.zig").Build;
@@ -31,7 +31,8 @@ pub fn translate(allocator: std.mem.Allocator, args: Args, binary: []u8) ![]cons
 
 /// Directly appends to the de_assembly
 fn translateLine(allocator: std.mem.Allocator, args: Args, line: Line, de_assembly: *std.ArrayListUnmanaged(u8)) !void {
-    var buffer: [4 + 2]u8 = [1]u8{undefined} ** 6;
+    // Largest string is 0b111111111111 which is 14 characters long
+    var buffer: [12 + 2]u8 = [1]u8{undefined} ** 14;
     switch (line.opcode) {
         0x0 => {
             if (line.number_1 == 0x0 and line.number_2 == 0xE and line.number_3 == 0x0) {
@@ -43,7 +44,7 @@ fn translateLine(allocator: std.mem.Allocator, args: Args, line: Line, de_assemb
             } else {
                 try de_assembly.appendSlice(allocator, if (args.use_assembly_like) "exe " else "execute ");
                 const num: u12 = (@as(u12, line.number_1) << 8) + (@as(u12, line.number_2) << 4) + line.number_3;
-                const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, num);
+                const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, num);
                 try de_assembly.appendSlice(allocator, str);
             }
             try de_assembly.append(allocator, '\n');
@@ -51,14 +52,14 @@ fn translateLine(allocator: std.mem.Allocator, args: Args, line: Line, de_assemb
         0x1 => {
             try de_assembly.appendSlice(allocator, if (args.use_assembly_like) "jmp " else "jump ");
             const num: u12 = (@as(u12, line.number_1) << 8) + (@as(u12, line.number_2) << 4) + line.number_3;
-            const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, num);
+            const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, num);
             try de_assembly.appendSlice(allocator, str);
             try de_assembly.append(allocator, '\n');
         },
         0x2 => {
             try de_assembly.appendSlice(allocator, if (args.use_assembly_like) "cal " else "call ");
             const num: u12 = (@as(u12, line.number_1) << 8) + (@as(u12, line.number_2) << 4) + line.number_3;
-            const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, num);
+            const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, num);
             try de_assembly.appendSlice(allocator, str);
             try de_assembly.append(allocator, '\n');
         },
@@ -66,11 +67,11 @@ fn translateLine(allocator: std.mem.Allocator, args: Args, line: Line, de_assemb
             try de_assembly.appendSlice(allocator, if (args.use_assembly_like) "seq " else "skipEqual ");
             const reg_num: u4 = line.number_1;
             try de_assembly.append(allocator, 'r');
-            const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+            const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
             try de_assembly.appendSlice(allocator, str);
             try de_assembly.append(allocator, ' ');
             const num: u8 = (@as(u8, line.number_2) << 4) + line.number_3;
-            const str2 = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, num);
+            const str2 = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, num);
             try de_assembly.appendSlice(allocator, str2);
             try de_assembly.append(allocator, '\n');
         },
@@ -78,11 +79,11 @@ fn translateLine(allocator: std.mem.Allocator, args: Args, line: Line, de_assemb
             try de_assembly.appendSlice(allocator, if (args.use_assembly_like) "sne " else "skipNotEqual ");
             const reg_num: u4 = line.number_1;
             try de_assembly.append(allocator, 'r');
-            const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+            const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
             try de_assembly.appendSlice(allocator, str);
             try de_assembly.append(allocator, ' ');
             const num: u8 = (@as(u8, line.number_2) << 4) + line.number_3;
-            const str2 = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, num);
+            const str2 = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, num);
             try de_assembly.appendSlice(allocator, str2);
             try de_assembly.append(allocator, '\n');
         },
@@ -92,12 +93,12 @@ fn translateLine(allocator: std.mem.Allocator, args: Args, line: Line, de_assemb
                 var reg_num: u4 = undefined;
                 reg_num = line.number_1;
                 try de_assembly.append(allocator, 'r');
-                const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                 try de_assembly.appendSlice(allocator, str);
                 try de_assembly.append(allocator, ' ');
                 reg_num = line.number_2;
                 try de_assembly.append(allocator, 'r');
-                const str2 = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                const str2 = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                 try de_assembly.appendSlice(allocator, str2);
             } else {
                 try writeRaw(allocator, &buffer, args, de_assembly, line);
@@ -108,11 +109,11 @@ fn translateLine(allocator: std.mem.Allocator, args: Args, line: Line, de_assemb
             try de_assembly.appendSlice(allocator, if (args.use_assembly_like) "set " else "set ");
             const reg_num: u4 = line.number_1;
             try de_assembly.append(allocator, 'r');
-            const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+            const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
             try de_assembly.appendSlice(allocator, str);
             try de_assembly.append(allocator, ' ');
             const num: u8 = (@as(u8, line.number_2) << 4) + line.number_3;
-            const str2 = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, num);
+            const str2 = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, num);
             try de_assembly.appendSlice(allocator, str2);
             try de_assembly.append(allocator, '\n');
         },
@@ -120,11 +121,11 @@ fn translateLine(allocator: std.mem.Allocator, args: Args, line: Line, de_assemb
             try de_assembly.appendSlice(allocator, if (args.use_assembly_like) "add " else "add ");
             const reg_num: u4 = line.number_1;
             try de_assembly.append(allocator, 'r');
-            const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+            const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
             try de_assembly.appendSlice(allocator, str);
             try de_assembly.append(allocator, ' ');
             const num: u8 = (@as(u8, line.number_2) << 4) + line.number_3;
-            const str2 = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, num);
+            const str2 = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, num);
             try de_assembly.appendSlice(allocator, str2);
             try de_assembly.append(allocator, '\n');
         },
@@ -135,12 +136,12 @@ fn translateLine(allocator: std.mem.Allocator, args: Args, line: Line, de_assemb
                     var reg_num: u4 = undefined;
                     reg_num = line.number_1;
                     try de_assembly.append(allocator, 'r');
-                    const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                    const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                     try de_assembly.appendSlice(allocator, str);
                     try de_assembly.append(allocator, ' ');
                     reg_num = line.number_2;
                     try de_assembly.append(allocator, 'r');
-                    const str2 = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                    const str2 = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                     try de_assembly.appendSlice(allocator, str2);
                 },
                 0x1 => {
@@ -148,12 +149,12 @@ fn translateLine(allocator: std.mem.Allocator, args: Args, line: Line, de_assemb
                     var reg_num: u4 = undefined;
                     reg_num = line.number_1;
                     try de_assembly.append(allocator, 'r');
-                    const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                    const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                     try de_assembly.appendSlice(allocator, str);
                     try de_assembly.append(allocator, ' ');
                     reg_num = line.number_2;
                     try de_assembly.append(allocator, 'r');
-                    const str2 = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                    const str2 = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                     try de_assembly.appendSlice(allocator, str2);
                     try de_assembly.appendSlice(allocator, " or");
                 },
@@ -162,12 +163,12 @@ fn translateLine(allocator: std.mem.Allocator, args: Args, line: Line, de_assemb
                     var reg_num: u4 = undefined;
                     reg_num = line.number_1;
                     try de_assembly.append(allocator, 'r');
-                    const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                    const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                     try de_assembly.appendSlice(allocator, str);
                     try de_assembly.append(allocator, ' ');
                     reg_num = line.number_2;
                     try de_assembly.append(allocator, 'r');
-                    const str2 = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                    const str2 = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                     try de_assembly.appendSlice(allocator, str2);
                     try de_assembly.appendSlice(allocator, " and");
                 },
@@ -176,12 +177,12 @@ fn translateLine(allocator: std.mem.Allocator, args: Args, line: Line, de_assemb
                     var reg_num: u4 = undefined;
                     reg_num = line.number_1;
                     try de_assembly.append(allocator, 'r');
-                    const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                    const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                     try de_assembly.appendSlice(allocator, str);
                     try de_assembly.append(allocator, ' ');
                     reg_num = line.number_2;
                     try de_assembly.append(allocator, 'r');
-                    const str2 = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                    const str2 = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                     try de_assembly.appendSlice(allocator, str2);
                     try de_assembly.appendSlice(allocator, " xor");
                 },
@@ -190,12 +191,12 @@ fn translateLine(allocator: std.mem.Allocator, args: Args, line: Line, de_assemb
                     var reg_num: u4 = undefined;
                     reg_num = line.number_1;
                     try de_assembly.append(allocator, 'r');
-                    const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                    const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                     try de_assembly.appendSlice(allocator, str);
                     try de_assembly.append(allocator, ' ');
                     reg_num = line.number_2;
                     try de_assembly.append(allocator, 'r');
-                    const str2 = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                    const str2 = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                     try de_assembly.appendSlice(allocator, str2);
                 },
                 0x5 => {
@@ -203,12 +204,12 @@ fn translateLine(allocator: std.mem.Allocator, args: Args, line: Line, de_assemb
                     var reg_num: u4 = undefined;
                     reg_num = line.number_1;
                     try de_assembly.append(allocator, 'r');
-                    const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                    const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                     try de_assembly.appendSlice(allocator, str);
                     try de_assembly.append(allocator, ' ');
                     reg_num = line.number_2;
                     try de_assembly.append(allocator, 'r');
-                    const str2 = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                    const str2 = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                     try de_assembly.appendSlice(allocator, str2);
                 },
                 0x6 => {
@@ -216,12 +217,12 @@ fn translateLine(allocator: std.mem.Allocator, args: Args, line: Line, de_assemb
                     var reg_num: u4 = undefined;
                     reg_num = line.number_1;
                     try de_assembly.append(allocator, 'r');
-                    const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                    const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                     try de_assembly.appendSlice(allocator, str);
                     try de_assembly.append(allocator, ' ');
                     reg_num = line.number_2;
                     try de_assembly.append(allocator, 'r');
-                    const str2 = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                    const str2 = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                     try de_assembly.appendSlice(allocator, str2);
                 },
                 0x7 => {
@@ -229,12 +230,12 @@ fn translateLine(allocator: std.mem.Allocator, args: Args, line: Line, de_assemb
                     var reg_num: u4 = undefined;
                     reg_num = line.number_1;
                     try de_assembly.append(allocator, 'r');
-                    const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                    const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                     try de_assembly.appendSlice(allocator, str);
                     try de_assembly.append(allocator, ' ');
                     reg_num = line.number_2;
                     try de_assembly.append(allocator, 'r');
-                    const str2 = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                    const str2 = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                     try de_assembly.appendSlice(allocator, str2);
                     try de_assembly.appendSlice(allocator, " wtf");
                 },
@@ -243,12 +244,12 @@ fn translateLine(allocator: std.mem.Allocator, args: Args, line: Line, de_assemb
                     var reg_num: u4 = undefined;
                     reg_num = line.number_1;
                     try de_assembly.append(allocator, 'r');
-                    const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                    const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                     try de_assembly.appendSlice(allocator, str);
                     try de_assembly.append(allocator, ' ');
                     reg_num = line.number_2;
                     try de_assembly.append(allocator, 'r');
-                    const str2 = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                    const str2 = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                     try de_assembly.appendSlice(allocator, str2);
                 },
                 else => {
@@ -263,12 +264,12 @@ fn translateLine(allocator: std.mem.Allocator, args: Args, line: Line, de_assemb
                 var reg_num: u4 = undefined;
                 reg_num = line.number_1;
                 try de_assembly.append(allocator, 'r');
-                const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                 try de_assembly.appendSlice(allocator, str);
                 try de_assembly.append(allocator, ' ');
                 reg_num = line.number_2;
                 try de_assembly.append(allocator, 'r');
-                const str2 = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                const str2 = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                 try de_assembly.appendSlice(allocator, str2);
             } else {
                 try writeRaw(allocator, &buffer, args, de_assembly, line);
@@ -278,7 +279,7 @@ fn translateLine(allocator: std.mem.Allocator, args: Args, line: Line, de_assemb
         0xA => {
             try de_assembly.appendSlice(allocator, if (args.use_assembly_like) "sar " else "setAddressRegister ");
             const num: u12 = (@as(u12, line.number_1) << 8) + (@as(u12, line.number_2) << 4) + line.number_3;
-            const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, num);
+            const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, num);
             try de_assembly.appendSlice(allocator, str);
             try de_assembly.append(allocator, '\n');
         },
@@ -286,16 +287,16 @@ fn translateLine(allocator: std.mem.Allocator, args: Args, line: Line, de_assemb
             try de_assembly.appendSlice(allocator, if (args.use_assembly_like) "rjp " else "registerJump ");
             if (args.build == .chip_8) {
                 const num: u12 = (@as(u12, line.number_1) << 8) + (@as(u12, line.number_2) << 4) + line.number_3;
-                const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, num);
+                const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, num);
                 try de_assembly.appendSlice(allocator, str);
             } else if (args.build == .schip_1_0 or args.build == .schip_1_1) {
                 const reg_num: u4 = line.number_1;
                 try de_assembly.append(allocator, 'r');
-                const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                 try de_assembly.appendSlice(allocator, str);
                 try de_assembly.append(allocator, ' ');
                 const num: u12 = (@as(u12, line.number_1) << 8) + (@as(u12, line.number_2) << 4) + line.number_3;
-                const str2 = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, num);
+                const str2 = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, num);
                 try de_assembly.appendSlice(allocator, str2);
             } else unreachable;
             try de_assembly.append(allocator, '\n');
@@ -304,11 +305,11 @@ fn translateLine(allocator: std.mem.Allocator, args: Args, line: Line, de_assemb
             try de_assembly.appendSlice(allocator, if (args.use_assembly_like) "rnd " else "random ");
             const reg_num = line.number_1;
             try de_assembly.append(allocator, 'r');
-            const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+            const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
             try de_assembly.appendSlice(allocator, str);
             try de_assembly.append(allocator, ' ');
             const num: u8 = (@as(u8, line.number_2) << 4) + line.number_3;
-            const str2 = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, num);
+            const str2 = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, num);
             try de_assembly.appendSlice(allocator, str2);
             try de_assembly.append(allocator, '\n');
         },
@@ -317,16 +318,16 @@ fn translateLine(allocator: std.mem.Allocator, args: Args, line: Line, de_assemb
             var reg_num: u4 = undefined;
             reg_num = line.number_1;
             try de_assembly.append(allocator, 'r');
-            const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+            const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
             try de_assembly.appendSlice(allocator, str);
             try de_assembly.append(allocator, ' ');
             reg_num = line.number_2;
             try de_assembly.append(allocator, 'r');
-            const str2 = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+            const str2 = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
             try de_assembly.appendSlice(allocator, str2);
             try de_assembly.append(allocator, ' ');
             const num = line.number_3;
-            const str3 = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, num);
+            const str3 = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, num);
             try de_assembly.appendSlice(allocator, str3);
             try de_assembly.append(allocator, '\n');
         },
@@ -335,13 +336,13 @@ fn translateLine(allocator: std.mem.Allocator, args: Args, line: Line, de_assemb
                 try de_assembly.appendSlice(allocator, if (args.use_assembly_like) "spr " else "skipPressed ");
                 const reg_num = line.number_1;
                 try de_assembly.append(allocator, 'r');
-                const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                 try de_assembly.appendSlice(allocator, str);
             } else if (line.number_2 == 0xA and line.number_3 == 0x1) {
                 try de_assembly.appendSlice(allocator, if (args.use_assembly_like) "snp " else "skipNotPressed ");
                 const reg_num = line.number_1;
                 try de_assembly.append(allocator, 'r');
-                const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                 try de_assembly.appendSlice(allocator, str);
             } else {
                 try writeRaw(allocator, &buffer, args, de_assembly, line);
@@ -353,75 +354,75 @@ fn translateLine(allocator: std.mem.Allocator, args: Args, line: Line, de_assemb
                 try de_assembly.appendSlice(allocator, if (args.use_assembly_like) "gdt " else "getDelayTimer ");
                 const reg_num = line.number_1;
                 try de_assembly.append(allocator, 'r');
-                const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                 try de_assembly.appendSlice(allocator, str);
             } else if (line.number_2 == 0x0 and line.number_3 == 0xA) {
                 try de_assembly.appendSlice(allocator, if (args.use_assembly_like) "wkr " else "waitKeyReleased ");
                 const reg_num = line.number_1;
                 try de_assembly.append(allocator, 'r');
-                const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                 try de_assembly.appendSlice(allocator, str);
             } else if (line.number_2 == 0x1 and line.number_3 == 0x5) {
                 try de_assembly.appendSlice(allocator, if (args.use_assembly_like) "sdt " else "setDelayTimer ");
                 const reg_num = line.number_1;
                 try de_assembly.append(allocator, 'r');
-                const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                 try de_assembly.appendSlice(allocator, str);
             } else if (line.number_2 == 0x1 and line.number_3 == 0x8) {
                 try de_assembly.appendSlice(allocator, if (args.use_assembly_like) "sst " else "setSoundTimer ");
                 const reg_num = line.number_1;
                 try de_assembly.append(allocator, 'r');
-                const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                 try de_assembly.appendSlice(allocator, str);
             } else if (line.number_2 == 0x1 and line.number_3 == 0xE) {
                 try de_assembly.appendSlice(allocator, if (args.use_assembly_like) "aar " else "addAddressRegister ");
                 const reg_num = line.number_1;
                 try de_assembly.append(allocator, 'r');
-                const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                 try de_assembly.appendSlice(allocator, str);
             } else if (line.number_2 == 0x2 and line.number_3 == 0x9) {
                 try de_assembly.appendSlice(allocator, if (args.use_assembly_like) "saf " else "setAddressRegisterToFont ");
                 const reg_num = line.number_1;
                 try de_assembly.append(allocator, 'r');
-                const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                 try de_assembly.appendSlice(allocator, str);
             } else if (line.number_2 == 0x3 and line.number_3 == 0x0) {
                 try de_assembly.appendSlice(allocator, if (args.use_assembly_like) "saf " else "setAddressRegisterToFont ");
                 const reg_num = line.number_1;
                 try de_assembly.append(allocator, 'r');
-                const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                 try de_assembly.appendSlice(allocator, str);
                 try de_assembly.appendSlice(allocator, " schip");
             } else if (line.number_2 == 0x3 and line.number_3 == 0x3) {
                 try de_assembly.appendSlice(allocator, if (args.use_assembly_like) "bcd " else "binaryCodedDecimal ");
                 const reg_num = line.number_1;
                 try de_assembly.append(allocator, 'r');
-                const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                 try de_assembly.appendSlice(allocator, str);
             } else if (line.number_2 == 0x5 and line.number_3 == 0x5) {
                 try de_assembly.appendSlice(allocator, if (args.use_assembly_like) "srg " else "saveRegisters ");
                 const reg_num = line.number_1;
                 try de_assembly.append(allocator, 'r');
-                const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                 try de_assembly.appendSlice(allocator, str);
             } else if (line.number_2 == 0x6 and line.number_3 == 0x5) {
                 try de_assembly.appendSlice(allocator, if (args.use_assembly_like) "lrg " else "loadRegisters ");
                 const reg_num = line.number_1;
                 try de_assembly.append(allocator, 'r');
-                const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                 try de_assembly.appendSlice(allocator, str);
             } else if (line.number_2 == 0x7 and line.number_3 == 0x5) {
                 try de_assembly.appendSlice(allocator, if (args.use_assembly_like) "srg " else "saveRegisters ");
                 const reg_num = line.number_1;
                 try de_assembly.append(allocator, 'r');
-                const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                 try de_assembly.appendSlice(allocator, str);
                 try de_assembly.appendSlice(allocator, " storage");
             } else if (line.number_2 == 0x8 and line.number_3 == 0x5) {
                 try de_assembly.appendSlice(allocator, if (args.use_assembly_like) "lrg " else "loadRegisters ");
                 const reg_num = line.number_1;
                 try de_assembly.append(allocator, 'r');
-                const str = string.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
+                const str = String.stringFromIntNoAlloc(&buffer, args.number_base_to_use, reg_num);
                 try de_assembly.appendSlice(allocator, str);
                 try de_assembly.appendSlice(allocator, " storage");
             } else {
@@ -434,15 +435,15 @@ fn translateLine(allocator: std.mem.Allocator, args: Args, line: Line, de_assemb
 
 fn writeRaw(allocator: std.mem.Allocator, buffer: []u8, args: Args, de_assembly: *std.ArrayListUnmanaged(u8), line: Line) !void {
     try de_assembly.appendSlice(allocator, if (args.use_assembly_like) "raw " else "rawData ");
-    const str = string.stringFromIntNoAlloc(buffer, args.number_base_to_use, line.opcode);
+    const str = String.stringFromIntNoAlloc(buffer, args.number_base_to_use, line.opcode);
     try de_assembly.appendSlice(allocator, str);
     try de_assembly.append(allocator, ' ');
-    const str2 = string.stringFromIntNoAlloc(buffer, args.number_base_to_use, line.number_1);
+    const str2 = String.stringFromIntNoAlloc(buffer, args.number_base_to_use, line.number_1);
     try de_assembly.appendSlice(allocator, str2);
     try de_assembly.append(allocator, ' ');
-    const str3 = string.stringFromIntNoAlloc(buffer, args.number_base_to_use, line.number_2);
+    const str3 = String.stringFromIntNoAlloc(buffer, args.number_base_to_use, line.number_2);
     try de_assembly.appendSlice(allocator, str3);
     try de_assembly.append(allocator, ' ');
-    const str4 = string.stringFromIntNoAlloc(buffer, args.number_base_to_use, line.number_3);
+    const str4 = String.stringFromIntNoAlloc(buffer, args.number_base_to_use, line.number_3);
     try de_assembly.appendSlice(allocator, str4);
 }
