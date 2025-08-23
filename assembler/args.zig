@@ -53,7 +53,7 @@ pub const Args = struct {
 
 /// Caller must call Args.deinit once done
 /// The deinit function uses the same allocator that is passed into this function
-pub fn handleArgs(allocator: std.mem.Allocator) !Args {
+pub fn handleArgs(allocator: std.mem.Allocator, error_writer: *std.Io.Writer) !Args {
     var args = Args{};
     errdefer args.deinit(allocator);
     var args_iter = try std.process.argsWithAllocator(allocator);
@@ -67,17 +67,17 @@ pub fn handleArgs(allocator: std.mem.Allocator) !Args {
             for (arg[1..]) |char| {
                 switch (char) {
                     's' => args.binary_start_index = String.intFromString(u12, args_iter.next() orelse return error.NoNumberForBinaryStartIndexSpecified) catch |err| {
-                        return ErrorHandler.printReturnError(err, "Invalid number for 'i' arg, number must be a 12 bit integer (0-4095)");
+                        return ErrorHandler.printReturnError(error_writer, err, "Invalid number for 'i' arg, number must be a 12 bit integer (0-4095)");
                     },
                     'A' => args.use_assembly_like = true,
                     'a' => args.job = .assemble,
                     'd' => args.job = .de_assemble,
                     'o' => try args.output_file_name.changeName(allocator, args_iter.next() orelse {
-                        return ErrorHandler.printReturnError(error.NoOutputFileName, "An output file name was not given");
+                        return ErrorHandler.printReturnError(error_writer, error.NoOutputFileName, "An output file name was not given");
                     }),
                     'B' => {
                         const build_str = args_iter.next() orelse {
-                            return ErrorHandler.printReturnError(error.NoBuildSpecified, "See help text for currently supported builds");
+                            return ErrorHandler.printReturnError(error_writer, error.NoBuildSpecified, "See help text for currently supported builds");
                         };
                         if (std.mem.eql(u8, build_str, "chip-8")) {
                             args.build = .chip_8;
@@ -89,7 +89,7 @@ pub fn handleArgs(allocator: std.mem.Allocator) !Args {
                             args.build = .schip_modern;
                         } else if (std.mem.eql(u8, build_str, "chip-64")) {
                             args.build = .chip_64;
-                        } else return ErrorHandler.printReturnError(error.InvalidBuild, "See help text for currently supported builds");
+                        } else return ErrorHandler.printReturnError(error_writer, error.InvalidBuild, "See help text for currently supported builds");
                     },
                     'n' => {
                         const base_str = args_iter.next() orelse return error.NoBaseSpecified;
@@ -101,10 +101,10 @@ pub fn handleArgs(allocator: std.mem.Allocator) !Args {
                             args.number_base_to_use = .decimal;
                         } else if (std.mem.eql(u8, base_str, "hexadecimal")) {
                             args.number_base_to_use = .hexadecimal;
-                        } else return ErrorHandler.printReturnError(error.InvalidBase, "See help text for currently supported bases");
+                        } else return ErrorHandler.printReturnError(error_writer, error.InvalidBase, "See help text for currently supported bases");
                     },
                     'h' => return error.HelpAsked,
-                    else => return ErrorHandler.printReturnError(error.InvalidArgument, "Invalid Argument"),
+                    else => return ErrorHandler.printReturnError(error_writer, error.InvalidArgument, "Invalid Argument"),
                 }
             }
         } else {
@@ -112,11 +112,11 @@ pub fn handleArgs(allocator: std.mem.Allocator) !Args {
         }
     }
 
-    if (args.input_file_name.name == null) return ErrorHandler.printReturnError(error.NoFileNameGiven, "An input file name must be given");
+    if (args.input_file_name.name == null) return ErrorHandler.printReturnError(error_writer, error.NoFileNameGiven, "An input file name must be given");
     if (args.output_file_name.name == null)
         try args.output_file_name.changeName(allocator, if (args.job == .assemble) "out.ch8" else "main.chs");
     if (std.mem.eql(u8, args.input_file_name.name.?, args.output_file_name.name.?))
-        return ErrorHandler.printReturnError(error.DuplicateFileName, "Must give separate names for input and output files");
+        return ErrorHandler.printReturnError(error_writer, error.DuplicateFileName, "Must give separate names for input and output files");
 
     return args;
 }

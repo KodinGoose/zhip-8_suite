@@ -9,13 +9,23 @@ const ArgHandler = @import("args.zig");
 const ErrorHandler = @import("error.zig");
 
 pub fn main() !void {
+    var stdout_buf: [4096]u8 = undefined;
+    var stdout_writer = std.fs.File.stdout().writer(&stdout_buf);
+    const stdout = &stdout_writer.interface;
+    defer stdout.flush() catch {};
+
+    var stderr_buf: [4096]u8 = undefined;
+    var stderr_writer = std.fs.File.stderr().writer(&stderr_buf);
+    const stderr = &stderr_writer.interface;
+    defer stderr.flush() catch {};
+
     defer if (builtin.mode == .Debug) {
         _ = debug_allocator.deinit();
     };
 
-    var args = ArgHandler.handleArgs(allocator) catch |err| {
+    var args = ArgHandler.handleArgs(allocator, stderr) catch |err| {
         if (err == error.HelpAsked) {
-            try std.io.getStdOut().writer().writeAll(
+            try stdout.writeAll(
                 \\Usage: chip_assembler [input_file_name] [args]
                 \\Example: chip_assembler -s "main.chs" -b "pong.ch8" -dBn chip-8 decimal
                 \\
@@ -48,7 +58,7 @@ pub fn main() !void {
         } else if (err == error.ErrorPrinted) {
             return;
         } else {
-            ErrorHandler.printReturnError(err, "Unexpected error") catch {};
+            ErrorHandler.printReturnError(stderr, err, "Unexpected error") catch {};
             return;
         }
     };
@@ -58,50 +68,50 @@ pub fn main() !void {
 
     if (args.job == .assemble) {
         const file = wd.openFile(args.input_file_name.name.?, .{}) catch |err| {
-            ErrorHandler.printReturnError(err, "Couldn't open the input file") catch return;
+            ErrorHandler.printReturnError(stderr, err, "Couldn't open the input file") catch return;
         };
         defer file.close();
         const file_contents = file.readToEndAlloc(allocator, file.getEndPos() catch |err| {
-            ErrorHandler.printReturnError(err, "Couldn't read from the input file") catch return;
+            ErrorHandler.printReturnError(stderr, err, "Couldn't read from the input file") catch return;
         }) catch |err| {
-            ErrorHandler.printReturnError(err, "Couldn't read from the input file") catch return;
+            ErrorHandler.printReturnError(stderr, err, "Couldn't read from the input file") catch return;
         };
         defer allocator.free(file_contents);
-        const binary = assembler.assemble(args.build, allocator, args.binary_start_index, file_contents) catch |err| {
+        const binary = assembler.assemble(args.build, allocator, stderr, args.binary_start_index, file_contents) catch |err| {
             if (err == error.ErrorPrinted) return;
-            ErrorHandler.printReturnError(err, "Couldn't translate code into binary") catch return;
+            ErrorHandler.printReturnError(stderr, err, "Couldn't translate code into binary") catch return;
         };
         defer allocator.free(binary);
         const file2 = wd.createFile(args.output_file_name.name.?, .{}) catch |err| {
-            ErrorHandler.printReturnError(err, "Couldn't create output file") catch return;
+            ErrorHandler.printReturnError(stderr, err, "Couldn't create output file") catch return;
         };
         defer file2.close();
         file2.writeAll(binary) catch |err| {
-            ErrorHandler.printReturnError(err, "Couldn't write to output file") catch return;
+            ErrorHandler.printReturnError(stderr, err, "Couldn't write to output file") catch return;
         };
     } else if (args.job == .de_assemble) {
         const file = wd.openFile(args.input_file_name.name.?, .{}) catch |err| {
-            ErrorHandler.printReturnError(err, "Couldn't open the input file") catch return;
+            ErrorHandler.printReturnError(stderr, err, "Couldn't open the input file") catch return;
         };
         defer file.close();
         const file_contents = file.readToEndAlloc(allocator, file.getEndPos() catch |err| {
-            ErrorHandler.printReturnError(err, "Couldn't read from the input file") catch return;
+            ErrorHandler.printReturnError(stderr, err, "Couldn't read from the input file") catch return;
         }) catch |err| {
-            ErrorHandler.printReturnError(err, "Couldn't read from the input file") catch return;
+            ErrorHandler.printReturnError(stderr, err, "Couldn't read from the input file") catch return;
         };
         defer allocator.free(file_contents);
         const lines = de_assembler.translate(allocator, args, file_contents) catch |err| {
             // Currently the de_assembler cannot return error.ErrorPrinted
             // if (err == error.ErrorPrinted) return;
-            ErrorHandler.printReturnError(err, "Couldn't translate binary into code") catch return;
+            ErrorHandler.printReturnError(stderr, err, "Couldn't translate binary into code") catch return;
         };
         defer allocator.free(lines);
         const file2 = wd.createFile(args.output_file_name.name.?, .{}) catch |err| {
-            ErrorHandler.printReturnError(err, "Couldn't create output file") catch return;
+            ErrorHandler.printReturnError(stderr, err, "Couldn't create output file") catch return;
         };
         defer file2.close();
         file2.writeAll(lines) catch |err| {
-            ErrorHandler.printReturnError(err, "Couldn't write to output file") catch return;
+            ErrorHandler.printReturnError(stderr, err, "Couldn't write to output file") catch return;
         };
     }
 }
