@@ -20,6 +20,7 @@ const help_text =
     \\    schip1.0
     \\    schip1.1
     \\    schip-modern
+    \\    chip-64
     \\
 ;
 
@@ -28,6 +29,7 @@ pub const Build = enum(u8) {
     schip1_0,
     schip1_1,
     schip_modern,
+    chip_64,
 };
 
 /// Call deinit to free file_name
@@ -35,7 +37,7 @@ pub const Args = struct {
     file_name: ?[]const u8 = null,
     build: Build = .chip_8,
     fullscreen: bool = false,
-    program_start_index: u12 = 512,
+    program_start_index: ?u64 = null,
     interpreter_panic_on_error: bool = true,
     /// How many instructions to execute
     /// Null means execute normally
@@ -91,6 +93,8 @@ pub fn handleArgs(allocator: std.mem.Allocator) !Args {
                             args.build = .schip1_1;
                         } else if (std.mem.eql(u8, build_str, "schip-modern")) {
                             args.build = .schip_modern;
+                        } else if (std.mem.eql(u8, build_str, "chip-64")) {
+                            args.build = .chip_64;
                         } else try error_handler.handleError(allocator, "Build target not supported", error.InvalidArg);
                     },
                     'f' => args.fullscreen = !args.fullscreen,
@@ -98,7 +102,7 @@ pub fn handleArgs(allocator: std.mem.Allocator) !Args {
                         try std.io.getStdOut().writeAll(help_text);
                         return error.HelpAsked;
                     },
-                    'i' => args.program_start_index = string.intFromString(u12, args_iter.next() orelse {
+                    'i' => args.program_start_index = string.intFromString(u64, args_iter.next() orelse {
                         try error_handler.handleError(
                             allocator,
                             "No start index for the program has been specified",
