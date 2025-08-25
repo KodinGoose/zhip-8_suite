@@ -1,3 +1,6 @@
+//! TODO: Use new writer and reader interface instead of deprecated functions
+//! TODO: Change the starting_memory file to be only as big as it needs to be (Don't have a hex editor installed right now and can't be bothered)
+
 const std = @import("std");
 const builtin = @import("builtin");
 var debug_alloc = if (builtin.mode == .Debug) std.heap.DebugAllocator(.{}).init else null;
@@ -195,31 +198,19 @@ fn eventLoop(interpreter_inputs: *Inputs, inputs: *Inputs) !void {
 
 /// Returned slice is on heap
 fn getProgram(allocator: std.mem.Allocator, args: args_parser.Args) ![]u8 {
-    const file = try std.fs.cwd().openFile(args.file_name.?, .{});
-    defer file.close();
-    const file_contents = file.readToEndAlloc(allocator, 4096) catch |err| {
-        if (err == error.FileTooBig) {
-            try std.io.getStdOut().writeAll("Maximum size for a program is 4096 bytes");
-        }
-        return err;
-    };
-    defer allocator.free(file_contents);
+    const prog_file = try std.fs.cwd().openFile(args.file_name.?, .{});
+    defer prog_file.close();
+
+    const prog_file_contents = try prog_file.readToEndAlloc(allocator, try prog_file.getEndPos());
+    defer allocator.free(prog_file_contents);
 
     const mem_file = try std.fs.cwd().openFile("starting_memory", .{});
     defer mem_file.close();
-    const mem_file_contents = mem_file.readToEndAlloc(allocator, 4096) catch |err| {
-        if (err == error.FileTooBig) {
-            try std.io.getStdOut().writeAll("Corrupt starting memory file\nThe file must be 4096 bytes\n");
-        }
-        return err;
-    };
-    if (mem_file_contents.len != 4096) {
-        try std.io.getStdOut().writeAll("Corrupt starting memory file\nThe file must be 4096 bytes\n");
-        return error.FileTooSmall;
-    }
+    const mem_file_contents = try mem_file.readToEndAlloc(allocator, try mem_file.getEndPos());
+    errdefer allocator.free(mem_file_contents);
 
-    for (file_contents, 0..) |byte, i| {
-        mem_file_contents[args.program_start_index + i] = byte;
-    }
+    mem_file_contents = try allocator.realloc(mem_file_contents, @min(mem_file_contents.len, args.program_start_index + prog_file_contents.len));
+
+    @memcpy(mem_file_contents[args.program_start_index .. args.program_start_index + prog_file_contents.len], prog_file_contents);
     return mem_file_contents;
 }
