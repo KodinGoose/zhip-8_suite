@@ -1,3 +1,5 @@
+//! TODO: Change how this shit works, especially removing clien mode
+
 const std = @import("std");
 
 /// Doesn't have an init function but still need to call deinit
@@ -45,16 +47,14 @@ pub const Handler = struct {
         allocator: std.mem.Allocator,
         message: []const u8,
         opcode_byte: u8,
-        arg_byte: u8,
         prg_ptr: usize,
         err: anyerror,
     ) !void {
         self._error_count += 1;
         if (self._panic_on_error) {
-            self._buf.writer(allocator).print("{s}\nOpcode: {x:0>2}{x:0>2}\nProgram pointer: {d}\n", .{
+            self._buf.writer(allocator).print("{s}\nOpcode: {x:0>2}\nProgram pointer: {d}\n", .{
                 message,
                 opcode_byte,
-                arg_byte,
                 prg_ptr,
             }) catch {};
             if (self._client_mode) self._buf.writer(allocator).print("Error: {s}\n", .{@errorName(err)}) catch {};
@@ -63,10 +63,9 @@ pub const Handler = struct {
         } else {
             self._buf.appendNTimes(allocator, '-', 50) catch {};
             self._buf.append(allocator, '\n') catch {};
-            self._buf.writer(allocator).print("{s}\nOpcode: {x:0>2}{x:0>2}\nProgram pointer: {d}\nError: {s}\n", .{
+            self._buf.writer(allocator).print("{s}\nOpcode: {x:0>2}\nProgram pointer: {d}\nError: {s}\n", .{
                 message,
                 opcode_byte,
-                arg_byte,
                 prg_ptr,
                 @errorName(err),
             }) catch {};

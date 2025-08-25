@@ -3,12 +3,12 @@
 const std = @import("std");
 const Args = @import("args.zig");
 const ExtraWork = @import("interpreter_implementation/interpreter_base.zig").ExtraWork;
-const InterpreterBase = @import("interpreter_implementation/interpreter_base.zig").InterpreterBase;
-// const Chip8Interpreter = @import("interpreter_implementation/chip8_interpreter.zig").Interpreter;
-// const Schip10Interpreter = @import("interpreter_implementation/schip1.0_interpreter.zig").Interpreter;
-// const Schip11Interpreter = @import("interpreter_implementation/schip1.1_interpreter.zig").Interpreter;
-// const SchipModernInterpreter = @import("interpreter_implementation/schip-modern_interpreter.zig").Interpreter;
-const Chip64Interpreter = @import("interpreter_implementation/chip-64_interpreter.zig").Interpreter;
+// const InterpreterBase = @import("interpreter_implementations/interpreter_base.zig").InterpreterBase;
+// const Chip8Interpreter = @import("interpreter_implementations/chip8.zig").Interpreter;
+// const Schip10Interpreter = @import("interpreter_implementations/schip1.0.zig").Interpreter;
+// const Schip11Interpreter = @import("interpreter_implementations/schip1.1.zig").Interpreter;
+// const SchipModernInterpreter = @import("interpreter_implementations/schip-modern.zig").Interpreter;
+const Chip64Interpreter = @import("interpreter_implementations/chip-64.zig").Interpreter;
 
 const InterpreterTypes = union {
     // chip8: Chip8Interpreter,
@@ -46,17 +46,17 @@ pub const Interpreter = struct {
         }
     }
 
-    /// This function is used to get the base of the current interpreter
-    /// This is not a copy of the base, it is the base itself
-    pub fn getBase(self: *@This()) *InterpreterBase {
-        return &switch (self._tag) {
-            // .chip_8 => self._real_interpreter.chip8.base,
-            // .schip1_0 => self._real_interpreter.schip1_0.base,
-            // .schip1_1 => self._real_interpreter.schip1_1.base,
-            // .schip_modern => self._real_interpreter.schip_modern.base,
-            .chip_64 => self._real_interpreter.chip_64,
-        };
-    }
+    // /// This function is used to get the base of the current interpreter
+    // /// This is not a copy of the base, it is the base itself
+    // pub fn getBase(self: *@This()) *InterpreterBase {
+    //     return &switch (self._tag) {
+    //         // .chip_8 => self._real_interpreter.chip8.base,
+    //         // .schip1_0 => self._real_interpreter.schip1_0.base,
+    //         // .schip1_1 => self._real_interpreter.schip1_1.base,
+    //         // .schip_modern => self._real_interpreter.schip_modern.base,
+    //         .chip_64 => unreachable,
+    //     };
+    // }
 
     pub fn execNextIntstruction(self: *@This(), allocator: std.mem.Allocator) !?ExtraWork {
         return switch (self._tag) {
