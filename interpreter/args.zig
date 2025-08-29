@@ -1,5 +1,5 @@
 const std = @import("std");
-const string = @import("string");
+const string = @import("shared").String;
 const ErrorHandler = @import("error.zig").Handler;
 
 const help_text =
@@ -11,7 +11,7 @@ const help_text =
     \\    f: Fullscreen mode
     \\    i: Specify the programs starting index
     \\    h: Print this help text and exit
-    \\    p: Don't panic on encountering an error in the interpreted program (this also buffers error printing)
+    \\    p: Don't terminate on encountering an error in the interpreted program. USE WITH CAUTION!!!
     \\    r [int]: How many instructions to execute
     \\    C: Client mode (Do not use this flag)
     \\
@@ -61,8 +61,11 @@ pub const Args = struct {
 
 /// Caller must call Args.deinit once done
 pub fn handleArgs(allocator: std.mem.Allocator) !Args {
-    var error_handler = ErrorHandler{ ._panic_on_error = true, ._max_len = 4096, ._client_mode = false };
-    defer error_handler.deinit(allocator);
+    var stderr_buf: [1024]u8 = undefined;
+    var stderr_writer = std.fs.File.stderr().writer(&stderr_buf);
+    const stderr = &stderr_writer.interface;
+    defer stderr.flush() catch {};
+    var error_handler = ErrorHandler{ ._writer = stderr, ._panic_on_error = true };
 
     var args = Args{};
     errdefer args.deinit(allocator);
@@ -78,11 +81,7 @@ pub fn handleArgs(allocator: std.mem.Allocator) !Args {
                 switch (char) {
                     'B' => {
                         const build_str = args_iter.next() orelse {
-                            try error_handler.handleError(
-                                allocator,
-                                "No build target specified",
-                                error.MissingArg,
-                            );
+                            try error_handler.handleError("No build target specified", error.MissingArg);
                             unreachable;
                         };
                         if (std.mem.eql(u8, build_str, "chip-8")) {
@@ -95,38 +94,30 @@ pub fn handleArgs(allocator: std.mem.Allocator) !Args {
                             args.build = .schip_modern;
                         } else if (std.mem.eql(u8, build_str, "chip-64")) {
                             args.build = .chip_64;
-                        } else try error_handler.handleError(allocator, "Build target not supported", error.InvalidArg);
+                        } else try error_handler.handleError("Build target not supported", error.InvalidArg);
                     },
                     'f' => args.fullscreen = !args.fullscreen,
                     'h' => {
-                        try std.io.getStdOut().writeAll(help_text);
+                        try stderr.writeAll(help_text);
                         return error.HelpAsked;
                     },
                     'i' => args.program_start_index = string.intFromString(u64, args_iter.next() orelse {
-                        try error_handler.handleError(
-                            allocator,
-                            "No start index for the program has been specified",
-                            error.MissingArg,
-                        );
+                        try error_handler.handleError("No start index for the program has been specified", error.MissingArg);
                         unreachable;
                     }) catch |err| {
-                        try error_handler.handleError(allocator, "Invalid number for 'i' arg, number must be a 12 bit integer (0-4095)", err);
+                        try error_handler.handleError("Invalid number for 'i' arg, number must be a 12 bit integer (0-4095)", err);
                         unreachable;
                     },
                     'p' => args.interpreter_panic_on_error = false,
                     'r' => args.run_time = string.intFromString(usize, args_iter.next() orelse {
-                        try error_handler.handleError(
-                            allocator,
-                            "No run time specified",
-                            error.MissingArg,
-                        );
+                        try error_handler.handleError("No run time specified", error.MissingArg);
                         unreachable;
                     }) catch |err| {
-                        try error_handler.handleError(allocator, "Invalid number for 'r' arg, number must a 64 bit integer [0-2^64-1]", err);
+                        try error_handler.handleError("Invalid number for 'r' arg, number must a 64 bit integer [0-2^64-1]", err);
                         unreachable;
                     },
                     'C' => args.client_mode = !args.client_mode,
-                    else => try error_handler.handleError(allocator, "Invalid argument\nJust like your mother tells you", error.InvalidArg),
+                    else => try error_handler.handleError("Invalid argument\nJust like your mother tells you", error.InvalidArg),
                 }
             }
         } else {
@@ -134,7 +125,7 @@ pub fn handleArgs(allocator: std.mem.Allocator) !Args {
         }
     }
 
-    if (args.file_name == null) try error_handler.handleError(allocator, "No file specified", error.NoFileGiven);
+    if (args.file_name == null) try error_handler.handleError("No file specified", error.NoFileGiven);
 
     return args;
 }

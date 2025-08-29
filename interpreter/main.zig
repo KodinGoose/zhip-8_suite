@@ -6,11 +6,11 @@ const builtin = @import("builtin");
 var debug_alloc = if (builtin.mode == .Debug) std.heap.DebugAllocator(.{}).init else null;
 const alloc = if (builtin.mode == .Debug) debug_alloc.allocator() else std.heap.c_allocator;
 const sdl = @import("sdl_bindings");
-const Inputs = @import("input").Inputs;
+const Input = @import("shared").Input;
 const Interpreter = @import("interpreter.zig").Interpreter;
 const AudioStream = @import("8bit_sound.zig").AudioStream;
 const args_parser = @import("args.zig");
-var pixel_size: i32 = 10;
+var pixel_size: i32 = 1;
 var exit = false;
 
 const PlayField = struct {
@@ -28,6 +28,11 @@ var update_screen = false;
 var change_window = true;
 
 pub fn main() !void {
+    var stderr_buf: [4096]u8 = undefined;
+    var stderr_writer = std.fs.File.stderr().writer(&stderr_buf);
+    const stderr = &stderr_writer.interface;
+    defer stderr.flush() catch {};
+
     defer if (builtin.mode == .Debug) {
         _ = debug_alloc.deinit();
     };
@@ -41,13 +46,18 @@ pub fn main() !void {
     // This may seem bad but it's not (trust me)
     args.deinit(alloc);
 
-    var inputs = try Inputs.init(alloc, 2);
+    var inputs = try Input.init(alloc, 2);
     defer inputs.deinit(alloc);
 
     try sdl.init.initSDL(.{ .audio = true, .video = true, .events = true });
     defer sdl.init.deinitSDL();
 
-    window = try sdl.render.Window.init("interpreter", 64 * pixel_size, 32 * pixel_size, .{ .fullsceen = args.fullscreen, .resizable = true });
+    var interpreter = try Interpreter.init(alloc, mem, args, stderr);
+    defer interpreter.deinit(alloc);
+
+    if (interpreter._tag != .chip_64) pixel_size = 10;
+
+    window = try sdl.render.Window.init("interpreter", interpreter.getWidth(), interpreter.getHeight(), .{ .fullsceen = args.fullscreen, .resizable = true });
     defer window.deinit();
     window.sync() catch |err| std.log.warn("{s}", .{@errorName(err)});
 
@@ -57,17 +67,13 @@ pub fn main() !void {
     var audio_stream = try AudioStream.init();
     defer audio_stream.deinit();
 
-    var interpreter = try Interpreter.init(alloc, mem, args);
-    defer interpreter.deinit(alloc);
-
     // In case I want to test the interpreter without running even one instruction
     if (args.run_time == 0) exit = true;
 
     while (!exit) {
-        var interpreter_base = interpreter.getBase();
         const frame_start = sdl.C.SDL_GetTicksNS();
 
-        try eventLoop(&interpreter_base.user_inputs, &inputs);
+        try eventLoop(interpreter.getInputsPointer(), &inputs);
 
         if (inputs.inputs[0].released) {
             exit = true;
@@ -88,15 +94,15 @@ pub fn main() !void {
 
         if (change_window) {
             const win_size = try window.getWinSize();
-            if (@divTrunc(win_size.width, interpreter_base.display_w) < @divTrunc(win_size.height, interpreter_base.display_h)) {
-                pixel_size = @divTrunc(win_size.width, interpreter_base.display_w);
+            if (@divTrunc(win_size.width, interpreter.getWidth()) < @divTrunc(win_size.height, interpreter.getHeight())) {
+                pixel_size = @divTrunc(win_size.width, interpreter.getWidth());
             } else {
-                pixel_size = @divTrunc(win_size.height, interpreter_base.display_h);
+                pixel_size = @divTrunc(win_size.height, interpreter.getHeight());
             }
-            playfield.rect.x = @floatFromInt(@divTrunc(win_size.width - interpreter_base.display_w * pixel_size, 2));
-            playfield.rect.y = @floatFromInt(@divTrunc(win_size.height - interpreter_base.display_h * pixel_size, 2));
-            playfield.rect.w = @floatFromInt(interpreter_base.display_w * pixel_size);
-            playfield.rect.h = @floatFromInt(interpreter_base.display_h * pixel_size);
+            playfield.rect.x = @floatFromInt(@divTrunc(win_size.width - interpreter.getWidth() * pixel_size, 2));
+            playfield.rect.y = @floatFromInt(@divTrunc(win_size.height - interpreter.getHeight() * pixel_size, 2));
+            playfield.rect.w = @floatFromInt(interpreter.getWidth() * pixel_size);
+            playfield.rect.h = @floatFromInt(interpreter.getHeight() * pixel_size);
             update_screen = true;
         }
 
@@ -108,7 +114,7 @@ pub fn main() !void {
             var x: i32 = 0;
             var y: i32 = 0;
 
-            for (interpreter_base.display_buffer) |val| {
+            for (interpreter.getDisplayBuffer()) |val| {
                 if (val == 1) {
                     const rect = sdl.rect.Irect{
                         .x = (x * pixel_size) + @as(i32, @intFromFloat(playfield.rect.x)),
@@ -119,8 +125,8 @@ pub fn main() !void {
                     try renderer.renderFillRect(@constCast(&rect.toFrect()));
                 }
                 x += 1;
-                if (x >= interpreter_base.display_w) {
-                    x -= interpreter_base.display_w;
+                if (x >= interpreter.getWidth()) {
+                    x -= interpreter.getWidth();
                     y += 1;
                 }
             }
@@ -128,10 +134,10 @@ pub fn main() !void {
             update_screen = false;
         }
 
-        if (interpreter_base.sound_timer > 1) try audio_stream.play_sound(alloc, interpreter_base.sound_timer);
+        if (interpreter.getSoundTimer() > 1) try audio_stream.play_sound(alloc, interpreter.getSoundTimer());
 
         if (args.run_time) |val| {
-            if (val <= interpreter_base.hertz_counter) exit = true;
+            if (val <= interpreter.getHertzCounter()) exit = true;
         }
 
         const frame_end = sdl.C.SDL_GetTicksNS();
@@ -141,7 +147,7 @@ pub fn main() !void {
     }
 }
 
-fn eventLoop(interpreter_inputs: *Inputs, inputs: *Inputs) !void {
+fn eventLoop(interpreter_inputs: *Input, inputs: *Input) !void {
     interpreter_inputs.resetKeys();
     inputs.resetKeys();
     var event: sdl.C.SDL_Event = undefined;
@@ -206,11 +212,25 @@ fn getProgram(allocator: std.mem.Allocator, args: args_parser.Args) ![]u8 {
 
     const mem_file = try std.fs.cwd().openFile("starting_memory", .{});
     defer mem_file.close();
-    const mem_file_contents = try mem_file.readToEndAlloc(allocator, try mem_file.getEndPos());
+    var mem_file_contents = try mem_file.readToEndAlloc(allocator, try mem_file.getEndPos());
     errdefer allocator.free(mem_file_contents);
 
-    mem_file_contents = try allocator.realloc(mem_file_contents, @min(mem_file_contents.len, args.program_start_index + prog_file_contents.len));
+    // zig fmt: off
+    const code_start: usize =
+        if (args.program_start_index == null)
+            if (args.build == .chip_64) 0 else 0x200
+        else
+            args.program_start_index.?;
+    // zig fmt: on
 
-    @memcpy(mem_file_contents[args.program_start_index .. args.program_start_index + prog_file_contents.len], prog_file_contents);
+    mem_file_contents = try allocator.realloc(
+        mem_file_contents,
+        @min(
+            mem_file_contents.len,
+            code_start + prog_file_contents.len,
+        ),
+    );
+
+    @memcpy(mem_file_contents[code_start .. code_start + prog_file_contents.len], prog_file_contents);
     return mem_file_contents;
 }

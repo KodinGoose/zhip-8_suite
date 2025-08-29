@@ -1,82 +1,62 @@
-//! TODO: Change how this shit works, especially removing clien mode
-
 const std = @import("std");
 
 /// Doesn't have an init function but still need to call deinit
 pub const Handler = struct {
+    _writer: *std.Io.Writer,
     _panic_on_error: bool,
-    _buf: std.ArrayListUnmanaged(u8) = .{},
-    /// Max len of _buf.items: If _buf.items.len > _max_len _buf.items gets printed
-    /// This doesn't mean that this len is never exceeded just that it will be the max after returning from a function
-    /// If null this is ignored
-    _max_len: ?usize,
     _error_count: usize = 0,
-    /// If true then also prints the error message if self.panic_on_error = true
-    _client_mode: bool,
 
-    pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
-        if (!self._panic_on_error and self._error_count > 1) {
-            std.io.getStdOut().writer().print("-" ** 50 ++ "\nAmount of errors: {d}\n", .{self._error_count}) catch {};
+    /// Only prints error count if self._error_count > 1
+    pub fn writeErrorCount(self: *@This()) void {
+        if (self._error_count > 1) {
+            self._writer.print("-" ** 50 ++ "\nAmount of errors: {d}\n", .{self._error_count}) catch {};
         }
-        self._buf.deinit(allocator);
     }
 
-    /// Only returns an error when self.panic_on_error == true
-    pub fn handleError(self: *@This(), allocator: std.mem.Allocator, message: []const u8, err: anyerror) !void {
+    /// Only returns the error{ErrorPrinted} when self.panic_on_error == true
+    pub fn handleError(self: *@This(), message: []const u8, err: anyerror) (std.Io.Writer.Error || error{ErrorPrinted})!void {
         self._error_count += 1;
         if (self._panic_on_error) {
-            self._buf.writer(allocator).print("{s}\n", .{message}) catch {};
-            if (self._client_mode) self._buf.writer(allocator).print("Error: {s}\n", .{@errorName(err)}) catch {};
-            self.flush() catch {};
-            return err;
+            try self._writer.print("{s}\n", .{message});
+            try self._writer.print("Error: {s}\n", .{@errorName(err)});
+            try self._writer.flush();
+            return error.ErrorPrinted;
         } else {
-            self._buf.appendNTimes(allocator, '-', 50) catch {};
-            self._buf.append(allocator, '\n') catch {};
-            self._buf.writer(allocator).print("{s}\nerror: {s}\n", .{
+            try self._writer.writeAll(("-" ** 50) ++ "\n");
+            try self._writer.print("{s}\nerror: {s}\n", .{
                 message,
                 @errorName(err),
-            }) catch {};
-            if (self._max_len != null) if (self._buf.items.len > self._max_len.?) self.flush() catch {};
+            });
         }
     }
 
-    /// Only returns an error when self.panic_on_error == true
-    /// Ment to solely be used by the interpreter
+    /// Only returns error{ErrorPrinted} when self.panic_on_error == true
+    /// Ment to be used solely by the interpreter
     pub fn handleInterpreterError(
         self: *@This(),
-        allocator: std.mem.Allocator,
         message: []const u8,
         opcode_byte: u8,
         prg_ptr: usize,
         err: anyerror,
-    ) !void {
+    ) (std.Io.Writer.Error || error{ErrorPrinted})!void {
         self._error_count += 1;
         if (self._panic_on_error) {
-            self._buf.writer(allocator).print("{s}\nOpcode: {x:0>2}\nProgram pointer: {d}\n", .{
-                message,
-                opcode_byte,
-                prg_ptr,
-            }) catch {};
-            if (self._client_mode) self._buf.writer(allocator).print("Error: {s}\n", .{@errorName(err)}) catch {};
-            self.flush() catch {};
-            return err;
-        } else {
-            self._buf.appendNTimes(allocator, '-', 50) catch {};
-            self._buf.append(allocator, '\n') catch {};
-            self._buf.writer(allocator).print("{s}\nOpcode: {x:0>2}\nProgram pointer: {d}\nError: {s}\n", .{
+            try self._writer.print("{s}\nOpcode: {x:0>2}\nProgram pointer: {d}\nError: {s}\n", .{
                 message,
                 opcode_byte,
                 prg_ptr,
                 @errorName(err),
-            }) catch {};
-            if (self._max_len != null) if (self._buf.items.len > self._max_len.?) self.flush() catch {};
+            });
+            try self._writer.flush();
+            return error.ErrorPrinted;
+        } else {
+            try self._writer.writeAll(("-" ** 50) ++ "\n");
+            try self._writer.print("{s}\nOpcode: {x:0>2}\nProgram pointer: {d}\nError: {s}\n", .{
+                message,
+                opcode_byte,
+                prg_ptr,
+                @errorName(err),
+            });
         }
-    }
-
-    /// Unneccessary to call if self.panic_on_error == true
-    pub fn flush(self: *@This()) !void {
-        if (self._buf.items.len == 0) return;
-        try std.io.getStdOut().writeAll(self._buf.items);
-        self._buf.clearRetainingCapacity();
     }
 };
