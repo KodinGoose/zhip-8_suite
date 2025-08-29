@@ -1,4 +1,3 @@
-//! TODO: Use new writer and reader interface instead of deprecated functions
 //! TODO: Change the starting_memory file to be only as big as it needs to be (Don't have a hex editor installed right now and can't be bothered)
 
 const std = @import("std");
@@ -98,6 +97,7 @@ pub fn main() !void {
 
         if (match_window_to_resolution) {
             try window.setWinSize(interpreter.getWidth(), interpreter.getHeight());
+            try window.sync();
             match_window_to_resolution = false;
             update_window = true;
         }
@@ -214,6 +214,7 @@ fn eventLoop(interpreter_inputs: *Input, inputs: *Input) !void {
 }
 
 /// Returned slice is on heap
+/// TODO: Stop using deprecated functions
 fn getProgram(allocator: std.mem.Allocator, args: args_parser.Args) ![]u8 {
     const prog_file = try std.fs.cwd().openFile(args.file_name.?, .{});
     defer prog_file.close();

@@ -98,7 +98,8 @@ pub const Interpreter = struct {
             },
             0x17 => {
                 const address = self.readAddress(self.prg_ptr + 1);
-                try self.stack.push(allocator, address);
+                self.prg_ptr += 8;
+                try self.stack.push(allocator, self.prg_ptr);
                 self.prg_ptr = address -% 1;
             },
             else => try self._error_handler.handleInterpreterError("Unknown instruction", self.mem[self.prg_ptr], self.prg_ptr, error.UnknownInstruction),
@@ -117,7 +118,7 @@ pub const Interpreter = struct {
             (@as(u64, self.mem[at + 3]) << 32) + 
             (@as(u64, self.mem[at + 4]) << 24) + 
             (@as(u64, self.mem[at + 5]) << 16) + 
-            (@as(u64, self.mem[at + 6]) << 8) + 
+            (@as(u64, self.mem[at + 6]) << 8)  + 
             (@as(u64, self.mem[at + 7]) << 0);
         // zig fmt: on
     }

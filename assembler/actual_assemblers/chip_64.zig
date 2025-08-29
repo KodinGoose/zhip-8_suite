@@ -50,7 +50,7 @@ pub fn assemble(allocator: std.mem.Allocator, error_writer: *std.Io.Writer, bina
     const code_copy = try allocator.dupe(u8, code);
     defer allocator.free(code_copy);
     for (code_copy) |*char| {
-        if (char.* == '\r') char.* = ' ';
+        if (char.* == '\r' or char.* == '\t') char.* = ' ';
     }
     var splt_code = std.mem.splitScalar(u8, code_copy, '\n');
 
@@ -126,7 +126,7 @@ fn assembleInstructions(
         } else if (eql(assembly_opcode, "clear")) {
             try binary.append(allocator, 0x02);
             binary_index.* += 1;
-        } else if (eql(assembly_opcode, "return")) {
+        } else if (eql(assembly_opcode, "ret")) {
             try binary.append(allocator, 0x03);
             binary_index.* += 1;
         } else if (eql(assembly_opcode, "window")) {
