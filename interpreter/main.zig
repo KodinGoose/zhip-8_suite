@@ -84,7 +84,9 @@ pub fn main() !void {
             update_window = true;
         }
 
-        const maybe_work = try interpreter.execNextIntstruction(alloc);
+        const maybe_work = interpreter.execNextIntstruction(alloc) catch |err| {
+            if (err == error.ErrorPrinted) return else return err;
+        };
         if (maybe_work) |work| {
             switch (work) {
                 .match_window_to_resolution => match_window_to_resolution = true,
