@@ -43,7 +43,7 @@
   <tr>
     <td>clear</td>
     <td class = "Op">02</td>
-    <td>Clears the screen</td>
+    <td>Clears the draw buffer</td>
   </tr>
   <tr>
     <td>return</td>
@@ -51,28 +51,33 @@
     <td>Returns from subroutine/function. Pops address off of stack and jumps to it. If there are no values on stack stop execution and exit</td>
   </tr>
   <tr>
+    <td>window</td>
+    <td class = "Op">04</td>
+    <td>Matches window size to resolution</td>
+  </tr>
+  <tr>
     <td>resolution N N</td>
-    <td class = "Op">04 ++ N ++ N</td>
-    <td>Change window resolution to NxN. N is 16 bit. Clears the screen</td>
+    <td class = "Op">05 ++ N ++ N</td>
+    <td>Change draw buffer size to NxN. N is 16 bit. Clears the draw buffer</td>
   </tr>
   <tr>
     <td>scroll up N</td>
-    <td class = "Op">05 ++ N</td>
+    <td class = "Op">06 ++ N</td>
     <td>Scroll screen up N pixels. N is 16 bit</td>
   </tr>
   <tr>
     <td>scroll right N</td>
-    <td class = "Op">06 ++ N</td>
+    <td class = "Op">07 ++ N</td>
     <td>Scroll screen right N pixels. N is 16 bit</td>
   </tr>
   <tr>
     <td>scroll down N</td>
-    <td class = "Op">07 ++ N</td>
+    <td class = "Op">08 ++ N</td>
     <td>Scroll screen down N pixels. N is 16 bit</td>
   </tr>
   <tr>
     <td>scroll left N</td>
-    <td class = "Op">08 ++ N</td>
+    <td class = "Op">09 ++ N</td>
     <td>Scroll screen left N pixels. N is 16 bit</td>
   </tr>
   

@@ -72,9 +72,10 @@ pub const Interpreter = struct {
                     return error.ErrorPrinted;
                 } else return err,
             0x04 => {
-                // const collumns = std.mem.bigToNative(u16, @bitCast(self.mem[self.prg_ptr + 1 .. self.prg_ptr + 1 + 2]));
+                extra_work = .match_window_to_resolution;
+            },
+            0x05 => {
                 const collumns = (@as(usize, self.mem[self.prg_ptr + 1]) << 8) + self.mem[self.prg_ptr + 2];
-                // const rows = std.mem.bigToNative(u16, @bitCast(self.mem[self.prg_ptr + 3 .. self.prg_ptr + 3 + 2]));
                 const rows = (@as(usize, self.mem[self.prg_ptr + 3]) << 8) + self.mem[self.prg_ptr + 4];
                 self.draw_buf = try allocator.realloc(
                     self.draw_buf,

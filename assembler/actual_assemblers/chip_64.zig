@@ -129,8 +129,11 @@ fn assembleInstructions(
         } else if (eql(assembly_opcode, "return")) {
             try binary.append(allocator, 0x03);
             binary_index.* += 1;
-        } else if (eql(assembly_opcode, "resolution")) {
+        } else if (eql(assembly_opcode, "window")) {
             try binary.append(allocator, 0x04);
+            binary_index.* += 1;
+        } else if (eql(assembly_opcode, "resolution")) {
+            try binary.append(allocator, 0x05);
             binary_index.* += 1;
 
             try binary.appendSlice(allocator, &@as([2]u8, @bitCast(getInt(allocator, error_writer, u16, &splt_line, line_number.*, .strict, .big) catch |err| {
@@ -146,13 +149,13 @@ fn assembleInstructions(
             const arg = (try getStr(allocator, error_writer, &splt_line, line_number.*, .strict)).?;
             defer allocator.free(arg);
             if (eql(arg, "up")) {
-                try binary.append(allocator, 0x05);
-            } else if (eql(arg, "right")) {
                 try binary.append(allocator, 0x06);
-            } else if (eql(arg, "down")) {
+            } else if (eql(arg, "right")) {
                 try binary.append(allocator, 0x07);
-            } else if (eql(arg, "left")) {
+            } else if (eql(arg, "down")) {
                 try binary.append(allocator, 0x08);
+            } else if (eql(arg, "left")) {
+                try binary.append(allocator, 0x09);
             } else {
                 ErrorHandler.printAssembleError(error_writer, "Incorrect argument", line_number.*) catch continue :line_loop;
                 continue :line_loop;

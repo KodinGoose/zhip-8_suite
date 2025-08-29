@@ -62,6 +62,10 @@ pub const Window = struct {
         return .{ .width = width, .height = height };
     }
 
+    pub fn setWinSize(self: Window, width: i32, height: i32) !void {
+        if (!C.SDL_SetWindowSize(self.sdl, width, height)) return error.CouldntSetWindowSize;
+    }
+
     pub fn toggleFullscreen(self: Window) !void {
         const flags = WindowFlags.fromSDL(C.SDL_GetWindowFlags(self.sdl));
         const err = !C.SDL_SetWindowFullscreen(self.sdl, !flags.fullsceen);

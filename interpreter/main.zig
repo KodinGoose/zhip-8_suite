@@ -25,7 +25,8 @@ const PlayField = struct {
 var window: sdl.render.Window = undefined;
 var playfield: PlayField = PlayField{};
 var update_screen = false;
-var change_window = true;
+var update_window = true;
+var match_window_to_resolution = false;
 
 pub fn main() !void {
     var stderr_buf: [4096]u8 = undefined;
@@ -80,19 +81,26 @@ pub fn main() !void {
         } else if (inputs.inputs[1].released) {
             try window.toggleFullscreen();
             window.sync() catch |err| std.log.warn("{s}", .{@errorName(err)});
-            change_window = true;
+            update_window = true;
         }
 
         const maybe_work = try interpreter.execNextIntstruction(alloc);
         if (maybe_work) |work| {
             switch (work) {
-                .resolution_changed => change_window = true,
+                .match_window_to_resolution => match_window_to_resolution = true,
+                .resolution_changed => update_window = true,
                 .update_screen => update_screen = true,
                 .exit => exit = true,
             }
         }
 
-        if (change_window) {
+        if (match_window_to_resolution) {
+            try window.setWinSize(interpreter.getWidth(), interpreter.getHeight());
+            match_window_to_resolution = false;
+            update_window = true;
+        }
+
+        if (update_window) {
             const win_size = try window.getWinSize();
             if (@divTrunc(win_size.width, interpreter.getWidth()) < @divTrunc(win_size.height, interpreter.getHeight())) {
                 pixel_size = @divTrunc(win_size.width, interpreter.getWidth());
@@ -103,6 +111,7 @@ pub fn main() !void {
             playfield.rect.y = @floatFromInt(@divTrunc(win_size.height - interpreter.getHeight() * pixel_size, 2));
             playfield.rect.w = @floatFromInt(interpreter.getWidth() * pixel_size);
             playfield.rect.h = @floatFromInt(interpreter.getHeight() * pixel_size);
+            update_window = false;
             update_screen = true;
         }
 
@@ -196,7 +205,7 @@ fn eventLoop(interpreter_inputs: *Input, inputs: *Input) !void {
                 else => continue,
             },
             sdl.C.SDL_EVENT_QUIT => exit = true,
-            sdl.C.SDL_EVENT_WINDOW_RESIZED => change_window = true,
+            sdl.C.SDL_EVENT_WINDOW_RESIZED => update_window = true,
             else => continue,
         }
     }
