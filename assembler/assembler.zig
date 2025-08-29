@@ -14,6 +14,6 @@ pub fn assemble(build_target: Args.Build, allocator: std.mem.Allocator, error_wr
         // .schip_1_1 => return try Schip11.assemble(allocator, binary_start_index, code),
         // .schip_modern => return try SchipModern.assemble(allocator, binary_start_index, code),
         .chip_64 => return try Chip64.assemble(allocator, error_writer, binary_start_index, code),
-        else => return error.@"NotImplemented Deal with it, yes that's spaces in an error message",
+        else => return error.@"Not implemented, too bad.",
     }
 }
