@@ -14,7 +14,7 @@ const draw_buf_start_h = 256;
 pub const Interpreter = struct {
     prg_ptr: usize = 0,
     stack: Stack,
-    mem: []u8,
+    mem: std.ArrayList(u8),
     draw_buf: []u8,
     draw_w: u16 = draw_buf_start_w,
     draw_h: u16 = draw_buf_start_h,
@@ -34,7 +34,7 @@ pub const Interpreter = struct {
         return Interpreter{
             .prg_ptr = args.program_start_index orelse 0,
             .stack = try .init(allocator, 16),
-            .mem = try allocator.dupe(u8, mem),
+            .mem = .fromOwnedSlice(try allocator.dupe(u8, mem)),
             .draw_buf = draw_buf,
             .inputs = try .init(allocator, input_len),
             .rand_gen = .init(@truncate(@as(u128, @bitCast(std.time.nanoTimestamp())))),
@@ -47,7 +47,7 @@ pub const Interpreter = struct {
 
     pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
         self.stack.deinit(allocator);
-        allocator.free(self.mem);
+        self.mem.deinit(allocator);
         allocator.free(self.draw_buf);
         self.inputs.deinit(allocator);
         self._error_handler._writer.flush() catch {};
@@ -57,7 +57,7 @@ pub const Interpreter = struct {
     pub fn execNextInstruction(self: *@This(), allocator: std.mem.Allocator) !?ExtraWork {
         var extra_work: ?ExtraWork = null;
 
-        switch (self.mem[self.prg_ptr]) {
+        switch (self.mem.items[self.prg_ptr]) {
             0x00 => {
                 self.prg_ptr -%= 1;
             },
@@ -72,7 +72,7 @@ pub const Interpreter = struct {
             // since you can't have more memory than 2^32-1 memory on 32 bit archs
             0x03 => self.prg_ptr = @truncate(self.stack.pop() catch |err|
                 if (err == error.OutOfBounds) {
-                    try self._error_handler.handleInterpreterError("Out of bounds of stack", self.mem[self.prg_ptr], self.prg_ptr, err);
+                    try self._error_handler.handleInterpreterError("Out of bounds of stack", self.mem.items[self.prg_ptr], self.prg_ptr, err);
                     // We return error no matter what because continuing likely wouldn't lead to any more useful errors
                     // and could easily lead to the execution of unwanted code (executing data as code for example)
                     return error.ErrorPrinted;
@@ -85,8 +85,8 @@ pub const Interpreter = struct {
             },
             0x06 => {
                 // u32 is just enough to store u16 * u16
-                const collumns = (@as(u32, self.mem[self.prg_ptr + 1]) << 8) + self.mem[self.prg_ptr + 2];
-                const rows = (@as(u32, self.mem[self.prg_ptr + 3]) << 8) + self.mem[self.prg_ptr + 4];
+                const collumns = (@as(u32, self.mem.items[self.prg_ptr + 1]) << 8) + self.mem.items[self.prg_ptr + 2];
+                const rows = (@as(u32, self.mem.items[self.prg_ptr + 3]) << 8) + self.mem.items[self.prg_ptr + 4];
                 self.draw_buf = try allocator.realloc(
                     self.draw_buf,
                     collumns * rows,
@@ -98,35 +98,61 @@ pub const Interpreter = struct {
                 extra_work = .resolution_changed;
             },
             0x07...0x0A => {
-                try self._error_handler.handleInterpreterError("Unimplemented instruction", self.mem[self.prg_ptr], self.prg_ptr, error.UnimplementedInstruction);
+                try self._error_handler.handleInterpreterError("Unimplemented instruction", self.mem.items[self.prg_ptr], self.prg_ptr, error.UnimplementedInstruction);
             },
             0x10 => {
-                self.prg_ptr = self.readAddress(self.prg_ptr + 1) -% 1;
+                self.prg_ptr = self.read64BitNumber(self.prg_ptr + 1) -% 1;
+            },
+            0x11...0x16 => {
+                try self._error_handler.handleInterpreterError("Unimplemented instruction", self.mem.items[self.prg_ptr], self.prg_ptr, error.UnimplementedInstruction);
             },
             0x17 => {
-                const address = self.readAddress(self.prg_ptr + 1);
+                const address = self.read64BitNumber(self.prg_ptr + 1);
                 self.prg_ptr += 8;
                 try self.stack.push(allocator, self.prg_ptr);
                 self.prg_ptr = address -% 1;
             },
-            else => try self._error_handler.handleInterpreterError("Unknown instruction", self.mem[self.prg_ptr], self.prg_ptr, error.UnknownInstruction),
+            0x20 => {
+                const ref_ptr = self.read64BitNumber(self.prg_ptr + 1);
+                self.prg_ptr += 8;
+                try self.write64BitNumber(ref_ptr, self.mem.items.len);
+                const bytes_to_alloc = self.read64BitNumber(self.prg_ptr + 1);
+                self.prg_ptr += 8;
+                try self.mem.resize(allocator, self.mem.items.len + bytes_to_alloc);
+            },
+            0x21 => {
+                const ref_ptr = self.read64BitNumber(self.prg_ptr + 1);
+                self.prg_ptr += 8;
+                try self.write64BitNumber(ref_ptr, self.mem.items.len);
+                const bytes_to_alloc = self.read64BitNumber(self.read64BitNumber(self.prg_ptr + 1));
+                self.prg_ptr += 8;
+                try self.mem.resize(allocator, self.mem.items.len + bytes_to_alloc);
+            },
+            else => try self._error_handler.handleInterpreterError("Unknown instruction", self.mem.items[self.prg_ptr], self.prg_ptr, error.UnknownInstruction),
         }
         self.prg_ptr +%= 1;
 
         return extra_work;
     }
 
-    fn readAddress(self: *@This(), at: u64) u64 {
+    fn read64BitNumber(self: *@This(), at: u64) u64 {
         // zig fmt: off
         return
-            (@as(u64, self.mem[at + 0]) << 56) + 
-            (@as(u64, self.mem[at + 1]) << 48) + 
-            (@as(u64, self.mem[at + 2]) << 40) + 
-            (@as(u64, self.mem[at + 3]) << 32) + 
-            (@as(u64, self.mem[at + 4]) << 24) + 
-            (@as(u64, self.mem[at + 5]) << 16) + 
-            (@as(u64, self.mem[at + 6]) << 8)  + 
-            (@as(u64, self.mem[at + 7]) << 0);
+            (@as(u64, self.mem.items[at + 0]) << 56) + 
+            (@as(u64, self.mem.items[at + 1]) << 48) + 
+            (@as(u64, self.mem.items[at + 2]) << 40) + 
+            (@as(u64, self.mem.items[at + 3]) << 32) + 
+            (@as(u64, self.mem.items[at + 4]) << 24) + 
+            (@as(u64, self.mem.items[at + 5]) << 16) + 
+            (@as(u64, self.mem.items[at + 6]) << 8)  + 
+            (@as(u64, self.mem.items[at + 7]) << 0);
         // zig fmt: on
+    }
+
+    fn write64BitNumber(self: *@This(), at: u64, val: u64) !void {
+        if (at >= self.mem.items.len) {
+            try self._error_handler.handleInterpreterError("Out of bounds of memory", self.mem.items[self.prg_ptr], self.prg_ptr, error.OutOfBounds);
+        }
+        self.mem.replaceRangeAssumeCapacity(at, 8, &std.mem.toBytes(val));
     }
 };

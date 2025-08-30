@@ -234,7 +234,7 @@ fn getProgram(allocator: std.mem.Allocator, args: args_parser.Args) ![]u8 {
 
     mem_file_contents = try allocator.realloc(
         mem_file_contents,
-        @min(
+        @max(
             mem_file_contents.len,
             code_start + prog_file_contents.len,
         ),
