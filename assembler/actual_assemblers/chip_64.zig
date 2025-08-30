@@ -766,57 +766,6 @@ fn assembleInstructions(
                 if (err == error.ErrorPrinted) continue :line_loop else return err;
             })));
             binary_index.* += 8;
-        } else if (eql(assembly_opcode, "load")) {
-            try binary.append(allocator, 0x80);
-            binary_index.* += 1;
-
-            const arg = (try getStr(allocator, error_writer, &splt_line, line_number.*, .strict)).?;
-            defer allocator.free(arg);
-            if (eql(arg, "null")) {
-                //
-            } else if (eql(arg, "len")) {
-                binary.items[binary.items.len - 1] += 1;
-
-                try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
-                    if (err == error.ErrorPrinted) continue :line_loop else return err;
-                })));
-                binary_index.* += 8;
-            } else {
-                ErrorHandler.printAssembleError(error_writer, "Incorrect argument", line_number.*) catch continue :line_loop;
-            }
-
-            try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
-                if (err == error.ErrorPrinted) continue :line_loop else return err;
-            })));
-            binary_index.* += 8;
-
-            try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
-                if (err == error.ErrorPrinted) continue :line_loop else return err;
-            })));
-            binary_index.* += 8;
-        } else if (eql(assembly_opcode, "save")) {
-            try binary.append(allocator, 0x82);
-            binary_index.* += 1;
-
-            const arg = (try getStr(allocator, error_writer, &splt_line, line_number.*, .strict)).?;
-            defer allocator.free(arg);
-            if (eql(arg, "null")) {
-                //
-            } else if (eql(arg, "len")) {
-                binary.items[binary.items.len - 1] += 1;
-            } else {
-                ErrorHandler.printAssembleError(error_writer, "Incorrect argument", line_number.*) catch continue :line_loop;
-            }
-
-            try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
-                if (err == error.ErrorPrinted) continue :line_loop else return err;
-            })));
-            binary_index.* += 8;
-
-            try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
-                if (err == error.ErrorPrinted) continue :line_loop else return err;
-            })));
-            binary_index.* += 8;
         } else {
             ErrorHandler.printAssembleError(error_writer, "Invalid opcode", line_number.*) catch {};
             continue :line_loop;

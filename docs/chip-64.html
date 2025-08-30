@@ -388,44 +388,4 @@
       N are 16 bit
     </td>
   </tr>
-  <tr>
-    <td>load null A/L A/L</td>
-    <td class = "Op">80 ++ A ++ A</td>
-    <td>
-      Load file with name of string at first A/L into second A/L<br>
-      String is expected to be null terminated<br>
-      An extra null terminator is writen after the loaded data
-    </td>
-  </tr>
-  <tr>
-    <td>load len A/L A/L A/L</td>
-    <td class = "Op">81 ++ A ++ A ++ A</td>
-    <td>
-      Load file with name of string at first A/L into second A/L<br>
-      The string's length is expected to be just before the list and to be 64 bit unsigned<br>
-      The length (64 bit unsigned) of the data is writen to third A/L (Done this way in case no information about loaded data is desired)
-    </td>
-  </tr>
-  <tr>
-    <td>save null A/L A/L</td>
-    <td class = "Op">82 ++ A ++ A</td>
-    <td>
-      Save file with name of string at first A/L and data starting at second A/L<br>
-      String and data is expected to be null terminated
-    </td>
-  </tr>
-  <tr>
-    <td>save len A/L A/L</td>
-    <td class = "Op">83 ++ A ++ A</td>
-    <td>
-      Save file with name of string at first A/L and data starting at second A/L<br>
-      The string's and data's length is expected to be just before the respective list and to be 64 bit unsigned
-    </td>
-  </tr>
-  
-  <tr>
-    <td></td>
-    <td></td>
-    <td></td>
-  </tr>
 </table>
