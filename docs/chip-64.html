@@ -155,12 +155,22 @@
   <tr>
     <td>alloc A/L N</td>
     <td class = "Op">20 ++ A ++ N</td>
-    <td>Allocates N (64 bit unsigned) amount of bytes (list) with undefined values and saves the reference at A/L</td>
+    <td>Allocates N (64 bit unsigned) amount of bytes with undefined values and saves the reference at A/L</td>
   </tr>
   <tr>
     <td>alloc A/L A/L</td>
     <td class = "Op">21 ++ A ++ A</td>
-    <td>Allocates amount at second A/L (64 bit unsigned) of bytes (list) with undefined values and saves the reference at first A/L</td>
+    <td>Allocates amount at second A/L (64 bit unsigned) of bytes with undefined values and saves the reference at first A/L</td>
+  </tr>
+  <tr>
+    <td>free A/L N</td>
+    <td class = "Op">22 ++ A ++ N</td>
+    <td>Frees N (64 bit unsigned) amount of bytes at address at A/L</td>
+  </tr>
+  <tr>
+    <td>free A/L A/L</td>
+    <td class = "Op">23 ++ A ++ A</td>
+    <td>Frees amount of bytes at second A/L (64 bit unsigned) at address at first A/L</td>
   </tr>
 
   <tr>

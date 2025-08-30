@@ -234,10 +234,10 @@ fn getProgram(allocator: std.mem.Allocator, args: args_parser.Args) ![]u8 {
 
     mem_file_contents = try allocator.realloc(
         mem_file_contents,
-        @max(
+        if (args.build != .chip_64) @max(
             mem_file_contents.len,
             code_start + prog_file_contents.len,
-        ),
+        ) else code_start + prog_file_contents.len,
     );
 
     @memcpy(mem_file_contents[code_start .. code_start + prog_file_contents.len], prog_file_contents);

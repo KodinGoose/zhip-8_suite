@@ -295,6 +295,25 @@ fn assembleInstructions(
                 } else if (err == error.ErrorPrinted) continue :line_loop else return err;
             } orelse unreachable)));
             binary_index.* += 8;
+        } else if (eql(assembly_opcode, "free")) blk: {
+            try binary.append(allocator, 0x22);
+            const instruction_index: usize = binary.items.len - 1;
+            binary_index.* += 1;
+            try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
+                if (err == error.ErrorPrinted) continue :line_loop else return err;
+            })));
+            binary_index.* += 8;
+            try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getInt(allocator, error_writer, u64, &splt_line, line_number.*, .incorrect, .big) catch |err| {
+                if (err == error.Incorrect) {
+                    try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err2| {
+                        if (err2 == error.ErrorPrinted) continue :line_loop else return err2;
+                    })));
+                    binary_index.* += 8;
+                    binary.items[instruction_index] += 1;
+                    break :blk;
+                } else if (err == error.ErrorPrinted) continue :line_loop else return err;
+            } orelse unreachable)));
+            binary_index.* += 8;
         } else if (eql(assembly_opcode, "set")) blk: {
             try binary.append(allocator, 0x30);
             const instruction_index: usize = binary.items.len - 1;

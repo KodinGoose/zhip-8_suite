@@ -8,6 +8,11 @@ const Args = @import("../args.zig").Args;
 const Stack = @import("shared").Stack.Stack(u64);
 const ErrorHandler = @import("../error.zig").Handler;
 
+const AllocatedMem = packed struct {
+    start: u64,
+    len: u64,
+};
+
 const draw_buf_start_w = 512;
 const draw_buf_start_h = 256;
 
@@ -15,6 +20,8 @@ pub const Interpreter = struct {
     prg_ptr: usize = 0,
     stack: Stack,
     mem: std.ArrayList(u8),
+    allocated_memory_start: u64,
+    alloc_table: std.ArrayList(AllocatedMem) = .empty,
     draw_buf: []u8,
     draw_w: u16 = draw_buf_start_w,
     draw_h: u16 = draw_buf_start_h,
@@ -35,6 +42,7 @@ pub const Interpreter = struct {
             .prg_ptr = args.program_start_index orelse 0,
             .stack = try .init(allocator, 16),
             .mem = .fromOwnedSlice(try allocator.dupe(u8, mem)),
+            .allocated_memory_start = mem.len,
             .draw_buf = draw_buf,
             .inputs = try .init(allocator, input_len),
             .rand_gen = .init(@truncate(@as(u128, @bitCast(std.time.nanoTimestamp())))),
@@ -48,6 +56,7 @@ pub const Interpreter = struct {
     pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
         self.stack.deinit(allocator);
         self.mem.deinit(allocator);
+        self.alloc_table.deinit(allocator);
         allocator.free(self.draw_buf);
         self.inputs.deinit(allocator);
         self._error_handler._writer.flush() catch {};
@@ -112,21 +121,96 @@ pub const Interpreter = struct {
                 try self.stack.push(allocator, self.prg_ptr);
                 self.prg_ptr = address -% 1;
             },
-            0x20 => {
+            0x20...0x21 => blk: {
+                defer self.prg_ptr += 16;
                 const ref_ptr = self.read64BitNumber(self.prg_ptr + 1);
-                self.prg_ptr += 8;
                 try self.write64BitNumber(ref_ptr, self.mem.items.len);
-                const bytes_to_alloc = self.read64BitNumber(self.prg_ptr + 1);
-                self.prg_ptr += 8;
+                // zig fmt: off
+                const bytes_to_alloc =
+                    if (self.mem.items[self.prg_ptr] == 0x20)
+                        self.read64BitNumber(self.prg_ptr + 9)
+                    else if (self.mem.items[self.prg_ptr] == 0x21)
+                        self.read64BitNumber(self.read64BitNumber(self.prg_ptr + 9))
+                    else unreachable;
+                // zig fmt: on
+
+                if (bytes_to_alloc == 0) break :blk;
+
+                const old_len = self.mem.items.len;
                 try self.mem.resize(allocator, self.mem.items.len + bytes_to_alloc);
+
+                if (self.alloc_table.items.len == 0) {
+                    try self.alloc_table.append(allocator, .{ .start = old_len, .len = self.mem.items.len - old_len });
+                } else {
+                    self.alloc_table.items[self.alloc_table.items.len - 1].len = self.mem.items.len;
+                }
             },
-            0x21 => {
-                const ref_ptr = self.read64BitNumber(self.prg_ptr + 1);
-                self.prg_ptr += 8;
-                try self.write64BitNumber(ref_ptr, self.mem.items.len);
-                const bytes_to_alloc = self.read64BitNumber(self.read64BitNumber(self.prg_ptr + 1));
-                self.prg_ptr += 8;
-                try self.mem.resize(allocator, self.mem.items.len + bytes_to_alloc);
+            0x22...0x23 => blk: {
+                defer self.prg_ptr += 16;
+                const free_start = self.read64BitNumber(self.read64BitNumber(self.prg_ptr + 1));
+                // zig fmt: off
+                const free_len =
+                    if (self.mem.items[self.prg_ptr] == 0x22)
+                        self.read64BitNumber(self.prg_ptr + 9)
+                    else if (self.mem.items[self.prg_ptr] == 0x23)
+                        self.read64BitNumber(self.read64BitNumber(self.prg_ptr + 9))
+                    else unreachable;
+                // zig fmt: on
+
+                if (free_len == 0) break :blk;
+
+                if (self.alloc_table.items.len == 0) {
+                    try self._error_handler.handleInterpreterError("Attempt to free non allocated memory detected", self.mem.items[self.prg_ptr], self.prg_ptr, error.InvalidFree);
+                    break :blk;
+                }
+
+                if (free_start < self.alloc_table.items[0].start) {
+                    try self._error_handler.handleInterpreterError("Attempt to free non allocated memory detected", self.mem.items[self.prg_ptr], self.prg_ptr, error.InvalidFree);
+                    break :blk;
+                }
+
+                var alloc_index: usize = 0;
+                while (true) {
+                    if (alloc_index >= self.alloc_table.items.len) {
+                        try self._error_handler.handleInterpreterError("Attempt to free non allocated memory detected", self.mem.items[self.prg_ptr], self.prg_ptr, error.InvalidFree);
+                        break :blk;
+                    }
+                    const allocation = &self.alloc_table.items[alloc_index];
+                    if (free_start < allocation.start + allocation.len) {
+                        if (free_start == allocation.start) {
+                            if (free_len == allocation.len) {
+                                _ = self.alloc_table.orderedRemove(alloc_index);
+                                if (self.alloc_table.items.len == 0) {
+                                    self.mem.shrinkRetainingCapacity(self.allocated_memory_start);
+                                } else {
+                                    self.mem.shrinkRetainingCapacity(self.alloc_table.getLast().start + self.alloc_table.getLast().len);
+                                }
+                            } else if (free_len < allocation.len) {
+                                allocation.start = free_start + free_len;
+                                allocation.len = allocation.len - free_len;
+                            } else {
+                                try self._error_handler.handleInterpreterError("Attempt to free non allocated memory detected", self.mem.items[self.prg_ptr], self.prg_ptr, error.InvalidFree);
+                                break :blk;
+                            }
+                        } else {
+                            if (free_start + free_len == allocation.start + allocation.len) {
+                                if (alloc_index == self.alloc_table.items.len - 1) self.mem.shrinkRetainingCapacity(free_start);
+                            } else if (free_start + free_len < allocation.start + allocation.len) {
+                                try self.alloc_table.insert(
+                                    allocator,
+                                    alloc_index + 1,
+                                    .{ .start = free_start + free_len, .len = allocation.len - free_len - (free_start - allocation.start) },
+                                );
+                            } else {
+                                try self._error_handler.handleInterpreterError("Attempt to free non allocated memory detected", self.mem.items[self.prg_ptr], self.prg_ptr, error.InvalidFree);
+                                break :blk;
+                            }
+                            allocation.len = free_start - allocation.start;
+                        }
+                        break;
+                    }
+                    alloc_index += 1;
+                }
             },
             else => try self._error_handler.handleInterpreterError("Unknown instruction", self.mem.items[self.prg_ptr], self.prg_ptr, error.UnknownInstruction),
         }
@@ -136,23 +220,20 @@ pub const Interpreter = struct {
     }
 
     fn read64BitNumber(self: *@This(), at: u64) u64 {
-        // zig fmt: off
-        return
-            (@as(u64, self.mem.items[at + 0]) << 56) + 
-            (@as(u64, self.mem.items[at + 1]) << 48) + 
-            (@as(u64, self.mem.items[at + 2]) << 40) + 
-            (@as(u64, self.mem.items[at + 3]) << 32) + 
-            (@as(u64, self.mem.items[at + 4]) << 24) + 
-            (@as(u64, self.mem.items[at + 5]) << 16) + 
-            (@as(u64, self.mem.items[at + 6]) << 8)  + 
-            (@as(u64, self.mem.items[at + 7]) << 0);
-        // zig fmt: on
+        const i: usize = @intCast(at);
+        const arr = self.mem.items[i .. i + 8];
+        const val = std.mem.bigToNative(u64, std.mem.bytesToValue(u64, arr));
+        return val;
     }
 
     fn write64BitNumber(self: *@This(), at: u64, val: u64) !void {
         if (at >= self.mem.items.len) {
             try self._error_handler.handleInterpreterError("Out of bounds of memory", self.mem.items[self.prg_ptr], self.prg_ptr, error.OutOfBounds);
         }
-        self.mem.replaceRangeAssumeCapacity(at, 8, &std.mem.toBytes(val));
+        self.mem.replaceRangeAssumeCapacity(
+            at,
+            8,
+            &std.mem.toBytes(std.mem.nativeToBig(@TypeOf(val), val)),
+        );
     }
 };
