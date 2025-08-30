@@ -766,6 +766,46 @@ fn assembleInstructions(
                 if (err == error.ErrorPrinted) continue :line_loop else return err;
             })));
             binary_index.* += 8;
+        } else if (eql(assembly_opcode, "time")) {
+            try binary.append(allocator, 0x80);
+            binary_index.* += 1;
+
+            try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
+                if (err == error.ErrorPrinted) continue :line_loop else return err;
+            })));
+            binary_index.* += 8;
+        } else if (eql(assembly_opcode, "interpreter_sleeping")) {
+            try binary.append(allocator, 0x81);
+            binary_index.* += 1;
+
+            const arg = (try getStr(allocator, error_writer, &splt_line, line_number.*, .strict)).?;
+            defer allocator.free(arg);
+            if (eql(arg, "off")) {
+                try binary.append(allocator, 0x00);
+            } else if (eql(arg, "on")) {
+                try binary.append(allocator, 0x01);
+            } else {
+                ErrorHandler.printAssembleError(error_writer, "Incorrect argument", line_number.*) catch {};
+                continue :line_loop;
+            }
+            binary_index.* += 1;
+        } else if (eql(assembly_opcode, "sleep")) blk: {
+            try binary.append(allocator, 0x82);
+            const instruction_index = binary.items.len - 1;
+            binary_index.* += 1;
+
+            const int = getInt(allocator, error_writer, u64, &splt_line, line_number.*, .incorrect, .big) catch |err| {
+                if (err == error.Incorrect) {
+                    try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err2| {
+                        if (err2 == error.ErrorPrinted) continue :line_loop else return err2;
+                    })));
+                    binary_index.* += 8;
+                    binary.items[instruction_index] += 1;
+                    break :blk;
+                } else if (err == error.ErrorPrinted) continue :line_loop else return err;
+            } orelse unreachable;
+            try binary.appendSlice(allocator, &@as([8]u8, @bitCast(int)));
+            binary_index.* += 8;
         } else {
             ErrorHandler.printAssembleError(error_writer, "Invalid opcode", line_number.*) catch {};
             continue :line_loop;
