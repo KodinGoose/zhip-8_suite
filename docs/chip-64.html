@@ -388,4 +388,36 @@
       N are 16 bit
     </td>
   </tr>
+
+  <tr>
+    <td>time A/L</td>
+    <td class = "Op">80 ++ A</td>
+    <td>
+      Get os time in nanoseconds and store it at A/L<br>
+      Stored time is a 128 bit signed integer
+    </td>
+  </tr>
+    <tr>
+    <td>interpreter_sleeping off/on</td>
+    <td class = "Op">81 ++ B (0 == off, 1 == on)</td>
+    <td>
+      Set whether the interpreter sleeps<br>
+      By default instructions are being executed at 600 hz meaning 600 instructions are being executed every second<br>
+      By disabling interpreter sleeping instructions are executed as fast as possible
+    </td>
+  </tr>
+  <tr>
+    <td>sleep N</td>
+    <td class = "Op">82 ++ N</td>
+    <td>
+      Sleep for at least N (128 bit unsigned) nanoseconds
+    </td>
+  </tr>
+  <tr>
+    <td>sleep A/L</td>
+    <td class = "Op">83 ++ A</td>
+    <td>
+      Sleep for at least number at A/L (128 bit unsigned) nanoseconds
+    </td>
+  </tr>
 </table>
