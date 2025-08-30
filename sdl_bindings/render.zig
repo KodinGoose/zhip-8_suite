@@ -72,6 +72,12 @@ pub const Window = struct {
         if (err) return error.CouldntToggleWindowFullscreen;
     }
 
+    pub fn toggleResizable(self: Window) !void {
+        const flags = WindowFlags.fromSDL(C.SDL_GetWindowFlags(self.sdl));
+        const err = !C.SDL_SetWindowResizable(self.sdl, !flags.resizable);
+        if (err) return error.CouldntToggleWindowFullscreen;
+    }
+
     /// Only returns error on timeout
     /// TODO: Utilizes workaround to work around some systems being too slow and timing out
     /// This is a known issue and is set to be resolved by sdl v3.4.0 as of writing

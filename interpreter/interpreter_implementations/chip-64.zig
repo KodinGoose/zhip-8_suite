@@ -58,8 +58,12 @@ pub const Interpreter = struct {
         var extra_work: ?ExtraWork = null;
 
         switch (self.mem[self.prg_ptr]) {
-            0x00 => self.prg_ptr -%= 1,
-            0x01 => extra_work = .exit,
+            0x00 => {
+                self.prg_ptr -%= 1;
+            },
+            0x01 => {
+                extra_work = .exit;
+            },
             0x02 => {
                 for (self.draw_buf) |*byte| byte.* = 0;
                 extra_work = .update_screen;
@@ -74,9 +78,12 @@ pub const Interpreter = struct {
                     return error.ErrorPrinted;
                 } else return err),
             0x04 => {
-                extra_work = .match_window_to_resolution;
+                extra_work = .toggle_window_size_lock;
             },
             0x05 => {
+                extra_work = .match_window_to_resolution;
+            },
+            0x06 => {
                 // u32 is just enough to store u16 * u16
                 const collumns = (@as(u32, self.mem[self.prg_ptr + 1]) << 8) + self.mem[self.prg_ptr + 2];
                 const rows = (@as(u32, self.mem[self.prg_ptr + 3]) << 8) + self.mem[self.prg_ptr + 4];
@@ -90,7 +97,7 @@ pub const Interpreter = struct {
                 self.prg_ptr +%= 4;
                 extra_work = .resolution_changed;
             },
-            0x06...0x09 => {
+            0x07...0x0A => {
                 try self._error_handler.handleInterpreterError("Unimplemented instruction", self.mem[self.prg_ptr], self.prg_ptr, error.UnimplementedInstruction);
             },
             0x10 => {

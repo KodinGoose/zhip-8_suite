@@ -25,7 +25,6 @@ var window: sdl.render.Window = undefined;
 var playfield: PlayField = PlayField{};
 var update_screen = false;
 var update_window = true;
-var match_window_to_resolution = false;
 
 pub fn main() !void {
     var stderr_buf: [4096]u8 = undefined;
@@ -88,18 +87,16 @@ pub fn main() !void {
         };
         if (maybe_work) |work| {
             switch (work) {
-                .match_window_to_resolution => match_window_to_resolution = true,
+                .toggle_window_size_lock => try window.toggleResizable(),
+                .match_window_to_resolution => {
+                    try window.setWinSize(interpreter.getWidth(), interpreter.getHeight());
+                    try window.sync();
+                    update_window = true;
+                },
                 .resolution_changed => update_window = true,
                 .update_screen => update_screen = true,
                 .exit => exit = true,
             }
-        }
-
-        if (match_window_to_resolution) {
-            try window.setWinSize(interpreter.getWidth(), interpreter.getHeight());
-            try window.sync();
-            match_window_to_resolution = false;
-            update_window = true;
         }
 
         if (update_window) {
