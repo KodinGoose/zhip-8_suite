@@ -1,6 +1,6 @@
-# window lock
+window lock
 resolution 64 32
-# window match
+window match
 call :main
 halt
 

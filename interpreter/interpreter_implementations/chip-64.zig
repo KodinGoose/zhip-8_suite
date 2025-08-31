@@ -10,6 +10,7 @@ const ExtraWork = @import("base.zig").ExtraWork;
 const Args = @import("../args.zig").Args;
 const Stack = @import("shared").Stack.Stack(u64);
 const ErrorHandler = @import("../error.zig").Handler;
+const BigInt = @import("shared").BigInt;
 
 const AllocatedMem = packed struct {
     start: u64,
@@ -209,7 +210,22 @@ pub const Interpreter = struct {
                 }
             },
             0x30...0x31 => {
-                try self._error_handler.handleInterpreterError("Unimplemented instruction", self.mem.items[self.prg_ptr], self.prg_ptr, error.UnimplementedInstruction);
+                const bytes = self.readNumber(u16, self.prg_ptr + 1);
+                defer self.prg_ptr += 2;
+                const to_set_Ref = self.read64BitNumber(self.prg_ptr + 3);
+                defer self.prg_ptr += 8;
+                if (to_set_Ref >= self.mem.items.len) {
+                    try self._error_handler.handleInterpreterError("Out of bounds of memory", self.mem.items[self.prg_ptr], self.prg_ptr, error.OutOfBounds);
+                    return error.ErrorPrinted;
+                }
+                if (self.mem.items[self.prg_ptr] == 0x30) {
+                    @memmove(self.mem.items[to_set_Ref .. to_set_Ref + bytes], self.mem.items[self.prg_ptr + 11 .. self.prg_ptr + 11 + bytes]);
+                    self.prg_ptr += bytes;
+                } else {
+                    const set_to_ref = self.read64BitNumber(self.prg_ptr + 11);
+                    @memmove(self.mem.items[to_set_Ref .. to_set_Ref + bytes], self.mem.items[set_to_ref .. set_to_ref + bytes]);
+                    self.prg_ptr += 8;
+                }
             },
             0x40...0x49 => {
                 try self._error_handler.handleInterpreterError("Unimplemented instruction", self.mem.items[self.prg_ptr], self.prg_ptr, error.UnimplementedInstruction);
