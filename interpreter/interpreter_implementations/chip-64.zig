@@ -54,13 +54,17 @@ pub const Interpreter = struct {
     }
 
     pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
+        for (self.alloc_table.items) |allocation| {
+            self._error_handler._writer.print("Memory leaked, start: 0x{x}, len: 0x{x}\n", .{ allocation.start, allocation.len }) catch {};
+        }
+
         self.stack.deinit(allocator);
         self.mem.deinit(allocator);
         self.alloc_table.deinit(allocator);
         allocator.free(self.draw_buf);
         self.inputs.deinit(allocator);
-        self._error_handler._writer.flush() catch {};
         self._error_handler.writeErrorCount();
+        self._error_handler._writer.flush() catch {};
     }
 
     pub fn execNextInstruction(self: *@This(), allocator: std.mem.Allocator) !?ExtraWork {
