@@ -192,6 +192,10 @@ fn eventLoop(interpreter_inputs: *Input, inputs: *Input) !void {
             },
             sdl.C.SDL_EVENT_QUIT => exit = true,
             sdl.C.SDL_EVENT_WINDOW_RESIZED => update_window = true,
+            // Checking for these two events shouldn't be required but on some
+            // target platforms we don't get a window resized event when exiting fullscreen
+            sdl.C.SDL_EVENT_WINDOW_ENTER_FULLSCREEN => update_window = true,
+            sdl.C.SDL_EVENT_WINDOW_LEAVE_FULLSCREEN => update_window = true,
             else => continue,
         }
     }
