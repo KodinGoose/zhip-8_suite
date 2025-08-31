@@ -104,6 +104,7 @@ fn assembleInstructions(
                 if (ret) |_| {
                     ErrorHandler.printAssembleError(error_writer, "Duplicate alias", line_number.*) catch {};
                     _ = splt_line.next();
+                    allocator.free(low_str);
                     break;
                 } else {
                     try aliases.put(allocator, try allocator.realloc(low_str, low_str.len - 1), binary_index.*);
