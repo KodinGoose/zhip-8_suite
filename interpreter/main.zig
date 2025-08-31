@@ -13,11 +13,12 @@ var pixel_size: i32 = 1;
 var exit = false;
 
 const PlayField = struct {
-    rect: sdl.rect.Frect = undefined,
+    rect: sdl.rect.Irect = undefined,
 
-    pub fn draw(self: *@This(), renderer: sdl.render.Renderer) !void {
-        try renderer.setRenderDrawColor(255, 0, 0, 255);
-        try renderer.renderRect(&self.rect);
+    pub fn draw(self: *@This(), draw_to: *sdl.render.Surface) !void {
+        try draw_to.blitRect(&self.rect, .{ .r = 255, .g = 0, .b = 0, .a = 255 });
+        var rect = sdl.rect.Irect{ .x = self.rect.x + 1, .y = self.rect.y + 1, .w = self.rect.w - 2, .h = self.rect.h - 2 };
+        try draw_to.blitRect(&rect, .{ .r = 1, .g = 1, .b = 1, .a = 255 });
     }
 };
 
@@ -56,12 +57,9 @@ pub fn main() !void {
 
     if (interpreter._tag != .chip_64) pixel_size = 10;
 
-    window = try sdl.render.Window.init("interpreter", interpreter.getWidth(), interpreter.getHeight(), .{ .fullsceen = args.fullscreen, .resizable = true });
+    window = try sdl.render.Window.init("interpreter", interpreter.getDrawSurface().w, interpreter.getDrawSurface().h, .{ .fullsceen = args.fullscreen, .resizable = true });
     defer window.deinit();
     window.sync() catch |err| std.log.warn("{s}", .{@errorName(err)});
-
-    var renderer = try sdl.render.Renderer.init(window);
-    defer renderer.deinit();
 
     var audio_stream = try AudioStream.init();
     defer audio_stream.deinit();
@@ -89,7 +87,7 @@ pub fn main() !void {
             switch (work) {
                 .toggle_window_size_lock => try window.toggleResizable(),
                 .match_window_to_resolution => {
-                    try window.setWinSize(interpreter.getWidth(), interpreter.getHeight());
+                    try window.setWinSize(interpreter.getDrawSurface().w, interpreter.getDrawSurface().h);
                     try window.sync();
                     update_window = true;
                 },
@@ -100,45 +98,34 @@ pub fn main() !void {
         }
 
         if (update_window) {
+            const inter_surf = interpreter.getDrawSurface();
             const win_size = try window.getWinSize();
-            if (@divTrunc(win_size.width, interpreter.getWidth()) < @divTrunc(win_size.height, interpreter.getHeight())) {
-                pixel_size = @divTrunc(win_size.width, interpreter.getWidth());
+            if (@divTrunc(win_size.width, inter_surf.w) < @divTrunc(win_size.height, inter_surf.h)) {
+                pixel_size = @divTrunc(win_size.width, inter_surf.w);
             } else {
-                pixel_size = @divTrunc(win_size.height, interpreter.getHeight());
+                pixel_size = @divTrunc(win_size.height, inter_surf.h);
             }
-            playfield.rect.x = @floatFromInt(@divTrunc(win_size.width - interpreter.getWidth() * pixel_size, 2));
-            playfield.rect.y = @floatFromInt(@divTrunc(win_size.height - interpreter.getHeight() * pixel_size, 2));
-            playfield.rect.w = @floatFromInt(interpreter.getWidth() * pixel_size);
-            playfield.rect.h = @floatFromInt(interpreter.getHeight() * pixel_size);
+            playfield.rect.x = @divTrunc(win_size.width - inter_surf.w * pixel_size, 2) - 1;
+            playfield.rect.y = @divTrunc(win_size.height - inter_surf.h * pixel_size, 2) - 1;
+            playfield.rect.w = (inter_surf.w * pixel_size) + 2;
+            playfield.rect.h = (inter_surf.h * pixel_size) + 2;
             update_window = false;
             update_screen = true;
         }
 
         if (update_screen) {
-            try renderer.setRenderDrawColor(1, 1, 1, 255);
-            try renderer.clear();
-            try playfield.draw(renderer);
-            try renderer.setRenderDrawColor(255, 255, 255, 255);
-            var x: i32 = 0;
-            var y: i32 = 0;
+            var window_surface = try window.getSurface();
 
-            for (interpreter.getDisplayBuffer()) |val| {
-                if (val == 1) {
-                    const rect = sdl.rect.Irect{
-                        .x = (x * pixel_size) + @as(i32, @intFromFloat(playfield.rect.x)),
-                        .y = (y * pixel_size) + @as(i32, @intFromFloat(playfield.rect.y)),
-                        .w = pixel_size,
-                        .h = pixel_size,
-                    };
-                    try renderer.renderFillRect(@constCast(&rect.toFrect()));
-                }
-                x += 1;
-                if (x >= interpreter.getWidth()) {
-                    x -= interpreter.getWidth();
-                    y += 1;
-                }
-            }
-            try renderer.present();
+            try window_surface.clearSurface(.{ .r = 1.0 / 255.0, .g = 1.0 / 255.0, .b = 1.0 / 255.0, .a = 1.0 });
+
+            try playfield.draw(window_surface);
+
+            const inter_surf = interpreter.getDrawSurface();
+            var tmp_surf = try inter_surf.scaleSurface(inter_surf.w * pixel_size, inter_surf.h * pixel_size, .nearest);
+            defer tmp_surf.deinit();
+            try window_surface.blitSurface(tmp_surf, playfield.rect.x + 1, playfield.rect.y + 1);
+
+            try window.updateSurface();
             update_screen = false;
         }
 

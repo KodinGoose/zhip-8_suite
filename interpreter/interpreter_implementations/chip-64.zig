@@ -1,7 +1,10 @@
 const std = @import("std");
+const builtin = @import("builtin");
+
+const sdl = @import("sdl_bindings");
 
 const Input = @import("shared").Input;
-const input_len: usize = @intCast(@import("sdl_bindings").C.SDL_SCANCODE_COUNT);
+const input_len: usize = @intCast(sdl.C.SDL_SCANCODE_COUNT);
 
 const ExtraWork = @import("base.zig").ExtraWork;
 const Args = @import("../args.zig").Args;
@@ -13,8 +16,8 @@ const AllocatedMem = packed struct {
     len: u64,
 };
 
-const draw_buf_start_w = 512;
-const draw_buf_start_h = 256;
+const draw_start_start_w = 512;
+const draw_surface_start_h = 256;
 
 pub const Interpreter = struct {
     prg_ptr: usize = 0,
@@ -22,9 +25,7 @@ pub const Interpreter = struct {
     mem: std.ArrayList(u8),
     allocated_memory_start: u64,
     alloc_table: std.ArrayList(AllocatedMem) = .empty,
-    draw_buf: []u8,
-    draw_w: u16 = draw_buf_start_w,
-    draw_h: u16 = draw_buf_start_h,
+    draw_surface: *sdl.render.Surface,
     inputs: Input,
     rand_gen: std.Random.DefaultPrng,
     sound_timer: u8 = 0,
@@ -34,16 +35,12 @@ pub const Interpreter = struct {
     /// mem includes program code
     /// mem in unmodified
     pub fn init(allocator: std.mem.Allocator, mem: []u8, args: Args, err_writer: *std.Io.Writer) !@This() {
-        const draw_buf = try allocator.alloc(u8, draw_buf_start_w * draw_buf_start_h);
-        errdefer allocator.free(draw_buf);
-        for (draw_buf) |*byte| byte.* = 0;
-
         return Interpreter{
             .prg_ptr = args.program_start_index orelse 0,
             .stack = try .init(allocator, 16),
             .mem = .fromOwnedSlice(try allocator.dupe(u8, mem)),
             .allocated_memory_start = mem.len,
-            .draw_buf = draw_buf,
+            .draw_surface = try .init(draw_start_start_w, draw_surface_start_h, .rgba8888),
             .inputs = try .init(allocator, input_len),
             .rand_gen = .init(@truncate(@as(u128, @bitCast(std.time.nanoTimestamp())))),
             ._error_handler = .{
@@ -61,7 +58,7 @@ pub const Interpreter = struct {
         self.stack.deinit(allocator);
         self.mem.deinit(allocator);
         self.alloc_table.deinit(allocator);
-        allocator.free(self.draw_buf);
+        self.draw_surface.deinit();
         self.inputs.deinit(allocator);
         self._error_handler.writeErrorCount();
         self._error_handler._writer.flush() catch {};
@@ -78,7 +75,7 @@ pub const Interpreter = struct {
                 extra_work = .exit;
             },
             0x02 => {
-                for (self.draw_buf) |*byte| byte.* = 0;
+                try self.draw_surface.clearSurface(.{ .r = 0, .g = 0, .b = 0, .a = 0 });
                 extra_work = .update_screen;
             },
             // Truncate has no effect on 64 bit archs but is required to run on 32 bit archs and is safe
@@ -97,16 +94,11 @@ pub const Interpreter = struct {
                 extra_work = .match_window_to_resolution;
             },
             0x06 => {
-                // u32 is just enough to store u16 * u16
-                const collumns = (@as(u32, self.mem.items[self.prg_ptr + 1]) << 8) + self.mem.items[self.prg_ptr + 2];
-                const rows = (@as(u32, self.mem.items[self.prg_ptr + 3]) << 8) + self.mem.items[self.prg_ptr + 4];
-                self.draw_buf = try allocator.realloc(
-                    self.draw_buf,
-                    collumns * rows,
-                );
-                for (self.draw_buf) |*byte| byte.* = 0;
-                self.draw_w = @intCast(collumns);
-                self.draw_h = @intCast(rows);
+                const new_w = (@as(u32, self.mem.items[self.prg_ptr + 1]) << 8) + self.mem.items[self.prg_ptr + 2];
+                const new_h = (@as(u32, self.mem.items[self.prg_ptr + 3]) << 8) + self.mem.items[self.prg_ptr + 4];
+                self.draw_surface.deinit();
+                self.draw_surface = try sdl.render.Surface.init(@bitCast(new_w), @bitCast(new_h), .rgba8888);
+                try self.draw_surface.clearSurface(.{ .r = 0, .g = 0, .b = 0, .a = 0 });
                 self.prg_ptr +%= 4;
                 extra_work = .resolution_changed;
             },
@@ -216,6 +208,66 @@ pub const Interpreter = struct {
                     alloc_index += 1;
                 }
             },
+            0x30...0x31 => {
+                try self._error_handler.handleInterpreterError("Unimplemented instruction", self.mem.items[self.prg_ptr], self.prg_ptr, error.UnimplementedInstruction);
+            },
+            0x40...0x49 => {
+                try self._error_handler.handleInterpreterError("Unimplemented instruction", self.mem.items[self.prg_ptr], self.prg_ptr, error.UnimplementedInstruction);
+            },
+            0x50...0x5C => {
+                try self._error_handler.handleInterpreterError("Unimplemented instruction", self.mem.items[self.prg_ptr], self.prg_ptr, error.UnimplementedInstruction);
+            },
+            0x60...0x67 => {
+                try self._error_handler.handleInterpreterError("Unimplemented instruction", self.mem.items[self.prg_ptr], self.prg_ptr, error.UnimplementedInstruction);
+            },
+            0x70 => {
+                const sprite_w: usize = self.readNumber(u16, self.prg_ptr + 1);
+                self.prg_ptr += 2;
+                const sprite_h: usize = self.readNumber(u16, self.prg_ptr + 1);
+                self.prg_ptr += 2;
+                const X: i32 = @bitCast(self.readNumber(u32, self.read64BitNumber(self.prg_ptr + 1)));
+                self.prg_ptr += 8;
+                const Y: i32 = @bitCast(self.readNumber(u32, self.read64BitNumber(self.prg_ptr + 1)));
+                self.prg_ptr += 8;
+                const pixel_data_location = self.read64BitNumber(self.prg_ptr + 1);
+                self.prg_ptr += 8;
+
+                if (pixel_data_location + (sprite_w * sprite_h) >= self.mem.items.len) {
+                    try self._error_handler.handleInterpreterError("Out of bounds of memory", self.mem.items[self.prg_ptr], self.prg_ptr, error.OutOfBounds);
+                    return error.ErrorPrinted;
+                }
+
+                var pixels = try allocator.dupe(u8, self.mem.items[pixel_data_location .. pixel_data_location + sprite_w * 4 * sprite_h]);
+                defer allocator.free(pixels);
+                if (builtin.cpu.arch.endian() == .little) {
+                    var i: usize = 0;
+                    while (i < pixels.len) : (i += 4) {
+                        const tmp1 = pixels[i + 0];
+                        pixels[i + 0] = pixels[i + 3];
+                        pixels[i + 3] = tmp1;
+                        const tmp2 = pixels[i + 1];
+                        pixels[i + 1] = pixels[i + 2];
+                        pixels[i + 2] = tmp2;
+                    }
+                }
+
+                const sprite = try sdl.render.Surface.initFrom(
+                    @bitCast(@as(u32, @intCast(sprite_w))),
+                    @bitCast(@as(u32, @intCast(sprite_h))),
+                    .rgba8888,
+                    pixels,
+                    @bitCast(@as(u32, @intCast(sprite_w * 4))),
+                );
+                defer sprite.deinit();
+                std.debug.assert(pixels.len == sprite.pitch * @as(i32, @bitCast(@as(u32, @intCast(sprite_h)))));
+
+                try self.draw_surface.blitSurface(sprite, X, Y);
+
+                extra_work = .update_screen;
+            },
+            0x80...0x83 => {
+                try self._error_handler.handleInterpreterError("Unimplemented instruction", self.mem.items[self.prg_ptr], self.prg_ptr, error.UnimplementedInstruction);
+            },
             else => try self._error_handler.handleInterpreterError("Unknown instruction", self.mem.items[self.prg_ptr], self.prg_ptr, error.UnknownInstruction),
         }
         self.prg_ptr +%= 1;
@@ -239,5 +291,12 @@ pub const Interpreter = struct {
             8,
             &std.mem.toBytes(std.mem.nativeToBig(@TypeOf(val), val)),
         );
+    }
+
+    fn readNumber(self: *@This(), T: type, at: u64) T {
+        const i: usize = @intCast(at);
+        const arr = self.mem.items[i .. i + (std.math.divCeil(u16, @typeInfo(T).int.bits, 8) catch unreachable)];
+        const val = std.mem.bigToNative(T, std.mem.bytesToValue(T, arr));
+        return val;
     }
 };

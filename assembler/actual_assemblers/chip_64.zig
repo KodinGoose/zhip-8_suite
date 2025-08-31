@@ -747,11 +747,6 @@ fn assembleInstructions(
             } orelse unreachable)));
             binary_index.* += 2;
 
-            try binary.appendSlice(allocator, &@as([2]u8, @bitCast(getInt(allocator, error_writer, u16, &splt_line, line_number.*, .strict, .big) catch |err| {
-                if (err == error.ErrorPrinted) continue :line_loop else return err;
-            } orelse unreachable)));
-            binary_index.* += 2;
-
             try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err| {
                 if (err == error.ErrorPrinted) continue :line_loop else return err;
             })));

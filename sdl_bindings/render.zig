@@ -89,6 +89,17 @@ pub const Window = struct {
         }
         return error.CouldntSyncWindow;
     }
+
+    pub fn getSurface(self: Window) !*Surface {
+        const ret = C.SDL_GetWindowSurface(self.sdl);
+        if (ret == null) return error.CouldntToggleWindowFullscreen;
+        return Surface.fromSDL(ret);
+    }
+
+    pub fn updateSurface(self: Window) !void {
+        const err = !C.SDL_UpdateWindowSurface(self.sdl);
+        if (err) return error.CouldntToggleWindowFullscreen;
+    }
 };
 
 /// TODO: Finish this shit (2025.02.04)
@@ -174,6 +185,13 @@ pub const Surface = extern struct {
         return @ptrCast(ret);
     }
 
+    /// Passed in pixels must be freed after surface is deinited
+    pub fn initFrom(w: i32, h: i32, format: PixelFormat, pixels: []u8, byte_width: i32) !*Surface {
+        const ret = C.SDL_CreateSurfaceFrom(w, h, format.toSDL(), pixels.ptr, byte_width);
+        if (ret == null) return error.CouldntInitializeSurface;
+        return @ptrCast(ret);
+    }
+
     /// Creates an exact copy of self
     pub fn copy(self: *Surface) !*Surface {
         const ret = C.SDL_DuplicateSurface(self.toSDL());
@@ -249,7 +267,7 @@ pub const Surface = extern struct {
     }
 
     /// Assumes pixel format is 24 bit wide
-    pub fn setPixel(self: *@This(), format_details: *const C.SDL_PixelFormatDetails, x: usize, y: usize, pixel: Pixel) void {
+    pub fn setPixel(self: *Surface, format_details: *const C.SDL_PixelFormatDetails, x: usize, y: usize, pixel: Pixel) void {
         const stupid_pixel = C.SDL_MapRGB(format_details, null, pixel.r, pixel.g, pixel.b);
         // r, g, b and a here aren't necessearily the actual red, green, blue and alpha
         @as([*]u8, @ptrCast(self.pixels.?))[x * 3 + @as(u32, @bitCast(self.pitch)) * y + 0] = @as(Pixel, @bitCast(stupid_pixel)).r;
@@ -258,14 +276,13 @@ pub const Surface = extern struct {
     }
 
     /// Blit other surface to self
-    pub fn blitSurface(self: *@This(), other: *Surface, x: i32, y: i32) !void {
-        // SDL ignores the width and height argument
+    pub fn blitSurface(self: *Surface, other: *Surface, x: i32, y: i32) !void {
+        // SDL ignores the width and height fields
         var tmp_rect = rect.Irect{ .x = x, .y = y, .w = undefined, .h = undefined };
-        if (!C.SDL_BlitSurface(other.toSDL(), null, self.toSDL(), tmp_rect.toSDL()))
-            return error.CouldntBlitSurface;
+        if (!C.SDL_BlitSurface(other.toSDL(), null, self.toSDL(), tmp_rect.toSDL())) return error.CouldntBlitSurface;
     }
 
-    pub fn blitRect(self: *@This(), rectangle: *rect.Irect, color: C.SDL_Color) !void {
+    pub fn blitRect(self: *Surface, rectangle: *rect.Irect, color: C.SDL_Color) !void {
         const format_details = try self.getFormatDetails();
         const stupid_color = C.SDL_MapRGBA(format_details, null, color.r, color.g, color.b, color.a);
         if (!C.SDL_FillSurfaceRect(self.toSDL(), rectangle.toSDL(), stupid_color)) return error.CouldntBlitRect;

@@ -2,6 +2,8 @@
 
 const std = @import("std");
 
+const Surface = @import("sdl_bindings").render.Surface;
+
 const Inputs = @import("shared").Input;
 
 const Args = @import("args.zig");
@@ -65,13 +67,13 @@ pub const Interpreter = struct {
     //     };
     // }
 
-    pub fn getDisplayBuffer(self: *@This()) []u8 {
+    pub fn getDrawSurface(self: *@This()) *Surface {
         return switch (self._tag) {
             // .chip_8 => self._real_interpreter.chip8.draw_buf,
             // .schip1_0 => self._real_interpreter.schip1_0.draw_buf,
             // .schip1_1 => self._real_interpreter.schip1_1.draw_buf,
             // .schip_modern => self._real_interpreter.schip_modern.draw_buf,
-            .chip_64 => self._real_interpreter.chip_64.draw_buf,
+            .chip_64 => self._real_interpreter.chip_64.draw_surface,
             // temp code until I get back the other interpreter implementations
             else => unreachable,
         };
@@ -83,7 +85,7 @@ pub const Interpreter = struct {
             // .schip1_0 => @intCast(self._real_interpreter.schip1_0.draw_w),
             // .schip1_1 => @intCast(self._real_interpreter.schip1_1.draw_w),
             // .schip_modern => @intCast(self._real_interpreter.schip_modern.draw_w),
-            .chip_64 => @intCast(self._real_interpreter.chip_64.draw_w),
+            .chip_64 => unreachable, // Use getDrawSurface()
             // temp code until I get back the other interpreter implementations
             else => unreachable,
         };
@@ -95,7 +97,7 @@ pub const Interpreter = struct {
             // .schip1_0 => @intCast(self._real_interpreter.schip1_0.draw_h),
             // .schip1_1 => @intCast(self._real_interpreter.schip1_1.draw_h),
             // .schip_modern => @intCast(self._real_interpreter.schip_modern.draw_h),
-            .chip_64 => @intCast(self._real_interpreter.chip_64.draw_h),
+            .chip_64 => unreachable, // Use getDrawSurface()
             // temp code until I get back the other interpreter implementations
             else => unreachable,
         };
