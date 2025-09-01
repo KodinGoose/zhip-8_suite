@@ -144,8 +144,8 @@ key_released 0xAAAA :ret call wait
 
 create 24 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
 
-draw 0xAAAA 0xBBBB 0xCCCC *3 *4 *5
-draw 0xAAAA 0xBBBB 0xCCCC :ret :ret :ret
+draw 0xBBBB 0xCCCC *3 *4 *5
+draw 0xBBBB 0xCCCC :ret :ret :ret
 
 create 18 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
 
