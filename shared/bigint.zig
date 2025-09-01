@@ -79,7 +79,7 @@ pub const BigInt = struct {
     }
 
     /// Self.array.len and other.array.len must be the same
-    /// Returns true on underflow and false otherwise
+    /// Returns true on overflow and false otherwise
     pub fn addInPlace(self: *@This(), other: @This()) bool {
         std.debug.assert(self.array.len == other.array.len);
         var carry: bool = false;

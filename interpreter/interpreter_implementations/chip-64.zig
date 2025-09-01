@@ -212,23 +212,51 @@ pub const Interpreter = struct {
             0x30...0x31 => {
                 const bytes = self.readNumber(u16, self.prg_ptr + 1);
                 defer self.prg_ptr += 2;
-                const to_set_Ref = self.read64BitNumber(self.prg_ptr + 3);
+                const to_set_ref = self.read64BitNumber(self.prg_ptr + 3);
                 defer self.prg_ptr += 8;
-                if (to_set_Ref >= self.mem.items.len) {
+                if (to_set_ref >= self.mem.items.len) {
                     try self._error_handler.handleInterpreterError("Out of bounds of memory", self.mem.items[self.prg_ptr], self.prg_ptr, error.OutOfBounds);
                     return error.ErrorPrinted;
                 }
                 if (self.mem.items[self.prg_ptr] == 0x30) {
-                    @memmove(self.mem.items[to_set_Ref .. to_set_Ref + bytes], self.mem.items[self.prg_ptr + 11 .. self.prg_ptr + 11 + bytes]);
+                    @memmove(self.mem.items[to_set_ref .. to_set_ref + bytes], self.mem.items[self.prg_ptr + 11 .. self.prg_ptr + 11 + bytes]);
                     self.prg_ptr += bytes;
                 } else {
                     const set_to_ref = self.read64BitNumber(self.prg_ptr + 11);
-                    @memmove(self.mem.items[to_set_Ref .. to_set_Ref + bytes], self.mem.items[set_to_ref .. set_to_ref + bytes]);
+                    @memmove(self.mem.items[to_set_ref .. to_set_ref + bytes], self.mem.items[set_to_ref .. set_to_ref + bytes]);
                     self.prg_ptr += 8;
                 }
             },
-            0x40...0x49 => {
-                try self._error_handler.handleInterpreterError("Unimplemented instruction", self.mem.items[self.prg_ptr], self.prg_ptr, error.UnimplementedInstruction);
+            0x40...0x41 => {
+                // TODO: Eliminate allocations
+                const bytes = self.readNumber(u16, self.prg_ptr + 1);
+                defer self.prg_ptr += 2;
+                const add_to_ref = self.read64BitNumber(self.prg_ptr + 3);
+                defer self.prg_ptr += 8;
+                if (add_to_ref >= self.mem.items.len) {
+                    try self._error_handler.handleInterpreterError("Out of bounds of memory", self.mem.items[self.prg_ptr], self.prg_ptr, error.OutOfBounds);
+                    return error.ErrorPrinted;
+                }
+                const to_add_ref =
+                    if (self.mem.items[self.prg_ptr] == 0x40) blk: {
+                        self.prg_ptr += bytes;
+                        break :blk self.prg_ptr + 11 - bytes;
+                    } else blk: {
+                        self.prg_ptr += 8;
+                        break :blk self.read64BitNumber(self.prg_ptr + 11 - 8);
+                    };
+
+                var add_to_int = try BigInt.init(allocator, bytes);
+                defer add_to_int.deinit(allocator);
+                add_to_int.readBigEndian(self.mem.items[add_to_ref .. add_to_ref + bytes]);
+
+                var to_add_int = try BigInt.init(allocator, bytes);
+                defer to_add_int.deinit(allocator);
+                to_add_int.readBigEndian(self.mem.items[to_add_ref .. to_add_ref + bytes]);
+
+                _ = add_to_int.addInPlace(to_add_int);
+
+                add_to_int.writeBigEndian(self.mem.items[add_to_ref .. add_to_ref + bytes]);
             },
             0x50...0x5C => {
                 try self._error_handler.handleInterpreterError("Unimplemented instruction", self.mem.items[self.prg_ptr], self.prg_ptr, error.UnimplementedInstruction);
