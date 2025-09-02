@@ -227,10 +227,26 @@ pub const BigInt = struct {
     }
 
     /// Self.array.len and other.array.len must be the same
+    pub fn divInPlace(self: *@This(), other: @This(), allocator: std.mem.Allocator) !void {
+        std.debug.assert(self.array.len == other.array.len);
+        const tmp_int = try self.div(other, allocator);
+        self.deinit(allocator);
+        self.* = tmp_int;
+    }
+
+    /// Self.array.len and other.array.len must be the same
     /// Returned.array.len equals self.array.len
     pub fn mod(self: @This(), other: @This(), allocator: std.mem.Allocator) !@This() {
         std.debug.assert(self.array.len == other.array.len);
         return try self.divEx(other, allocator, .remainder);
+    }
+
+    /// Self.array.len and other.array.len must be the same
+    pub fn modInPlace(self: *@This(), other: @This(), allocator: std.mem.Allocator) !void {
+        std.debug.assert(self.array.len == other.array.len);
+        const tmp_int = try self.mod(other, allocator);
+        self.deinit(allocator);
+        self.* = tmp_int;
     }
 
     const DivReturnType = enum(u8) { quotient, remainder };
@@ -324,7 +340,7 @@ pub const BigInt = struct {
                 defer tmp_v.deinit(allocator);
                 @memcpy(tmp_v.array[0..n], u_part.array);
                 tmp_v.array[n] = 0;
-                const overflow = u_part.addInPlace(tmp_v);
+                const overflow = u_part.subInPlace(tmp_v);
                 // Should always overflow
                 std.debug.assert(overflow);
             }
@@ -644,7 +660,7 @@ test "addInPlace" {
     int2.array[0] = 0xFF;
     int2.array[1] = 0xFF;
 
-    _ = int1.addInPlace(int2);
+    _ = int1.subInPlace(int2);
 
     // 0000_0000 0000_0001 1111_1111 1111_1110
     try std.testing.expect(int1.array[0] == 0b1111_1110);
@@ -661,7 +677,7 @@ test "addInPlace" {
     int2.array[2] = 0x00;
     int2.array[3] = 0x00;
 
-    _ = int1.addInPlace(int2);
+    _ = int1.subInPlace(int2);
 
     // 0000_0000 0000_0000 0000_0000 0000_0000
     try std.testing.expect(int1.array[0] == 0b0000_0000);
