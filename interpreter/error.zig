@@ -41,9 +41,10 @@ pub const Handler = struct {
     ) (std.Io.Writer.Error || error{ErrorPrinted})!void {
         self._error_count += 1;
         if (self._panic_on_error) {
-            try self._writer.print("{s}\nOpcode: {x:0>2}\nProgram pointer: {d}\nError: {s}\n", .{
+            try self._writer.print("{s}\nOpcode: {x:0>2}\nProgram pointer: {d} ({x})\nError: {s}\n", .{
                 message,
                 opcode_byte,
+                prg_ptr,
                 prg_ptr,
                 @errorName(err),
             });
@@ -51,9 +52,10 @@ pub const Handler = struct {
             return error.ErrorPrinted;
         } else {
             try self._writer.writeAll(("-" ** 50) ++ "\n");
-            try self._writer.print("{s}\nOpcode: {x:0>2}\nProgram pointer: {d}\nError: {s}\n", .{
+            try self._writer.print("{s}\nOpcode: {x:0>2}\nProgram pointer: {d} ({x})\nError: {s}\n", .{
                 message,
                 opcode_byte,
+                prg_ptr,
                 prg_ptr,
                 @errorName(err),
             });
