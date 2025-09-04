@@ -1,6 +1,7 @@
 //! TODO: Do some fuzzy testing on this, especially division and modulo
 
 const std = @import("std");
+const Array = @import("array.zig");
 
 pub const BigInt = struct {
     /// Least significant byte is the first element (little endian)
@@ -30,6 +31,11 @@ pub const BigInt = struct {
         }
     }
 
+    /// Bytes are still interpreted as little endian
+    pub fn reverseByteOrder(self: *@This()) void {
+        Array.reverseArray(u8, self.array);
+    }
+
     /// Buffer must be the same length as self.array
     pub fn writeBigEndian(self: @This(), buffer: []u8) void {
         std.debug.assert(self.array.len == buffer.len);
@@ -53,6 +59,40 @@ pub const BigInt = struct {
             self.array[self_index] = buffer[buffer_index];
             buffer_index += 1;
         }
+    }
+
+    /// Other must be the same byte length as self.array
+    pub fn isLessThan(self: @This(), other: @This()) bool {
+        std.debug.assert(self.array.len == other.array.len);
+        var i = self.array.len -% 1;
+
+        while (i != std.math.maxInt(usize)) : (i -%= 1) {
+            if (self.array[i] < other.array[i])
+                return true
+            else if (self.array[i] > other.array[i])
+                return false
+            else
+                continue;
+        }
+
+        return false;
+    }
+
+    /// Other must be the same byte length as self.array
+    pub fn isLessThanEqual(self: @This(), other: @This()) bool {
+        std.debug.assert(self.array.len == other.array.len);
+        var i = self.array.len -% 1;
+
+        while (i != std.math.maxInt(usize)) : (i -%= 1) {
+            if (self.array[i] < other.array[i])
+                return true
+            else if (self.array[i] > other.array[i])
+                return false
+            else
+                continue;
+        }
+
+        return true;
     }
 
     /// Self.array.len and other.array.len must be the same
@@ -610,6 +650,78 @@ test "readBigEndian" {
     try std.testing.expect(int1.array[3] == 0b10101010);
 }
 
+test "isLessThan" {
+    const allocator = std.testing.allocator;
+    var int1 = try BigInt.init(allocator, 4);
+    defer int1.deinit(allocator);
+    int1.array[0] = 0xFF;
+    int1.array[1] = 0xFF;
+    var int2 = try BigInt.init(allocator, 4);
+    defer int2.deinit(allocator);
+    int2.array[0] = 0xFF;
+    int2.array[1] = 0xFF;
+
+    var result: bool = undefined;
+
+    result = int1.isLessThan(int2);
+
+    try std.testing.expect(result == false);
+
+    int1.array[0] = 0xFF;
+    int1.array[1] = 0xFE;
+    int2.array[0] = 0xFF;
+    int2.array[1] = 0xFF;
+
+    result = int1.isLessThan(int2);
+
+    try std.testing.expect(result == true);
+
+    int1.array[0] = 0xFF;
+    int1.array[1] = 0xFF;
+    int2.array[0] = 0xFF;
+    int2.array[1] = 0xFE;
+
+    result = int1.isLessThanEqual(int2);
+
+    try std.testing.expect(result == false);
+}
+
+test "isLessThanEqual" {
+    const allocator = std.testing.allocator;
+    var int1 = try BigInt.init(allocator, 4);
+    defer int1.deinit(allocator);
+    int1.array[0] = 0xFF;
+    int1.array[1] = 0xFF;
+    var int2 = try BigInt.init(allocator, 4);
+    defer int2.deinit(allocator);
+    int2.array[0] = 0xFF;
+    int2.array[1] = 0xFF;
+
+    var result: bool = undefined;
+
+    result = int1.isLessThanEqual(int2);
+
+    try std.testing.expect(result == true);
+
+    int1.array[0] = 0xFF;
+    int1.array[1] = 0xFE;
+    int2.array[0] = 0xFF;
+    int2.array[1] = 0xFF;
+
+    result = int1.isLessThanEqual(int2);
+
+    try std.testing.expect(result == true);
+
+    int1.array[0] = 0xFF;
+    int1.array[1] = 0xFF;
+    int2.array[0] = 0xFF;
+    int2.array[1] = 0xFE;
+
+    result = int1.isLessThanEqual(int2);
+
+    try std.testing.expect(result == false);
+}
+
 test "add" {
     const allocator = std.testing.allocator;
     var int1 = try BigInt.init(allocator, 4);
@@ -660,13 +772,13 @@ test "addInPlace" {
     int2.array[0] = 0xFF;
     int2.array[1] = 0xFF;
 
-    _ = int1.subInPlace(int2);
+    _ = int1.addInPlace(int2);
 
     // 0000_0000 0000_0001 1111_1111 1111_1110
-    try std.testing.expect(int1.array[0] == 0b1111_1110);
-    try std.testing.expect(int1.array[1] == 0b1111_1111);
-    try std.testing.expect(int1.array[2] == 0b0000_0001);
-    try std.testing.expect(int1.array[3] == 0b0000_0000);
+    try std.testing.expect(int1.array[0] == 0xFE);
+    try std.testing.expect(int1.array[1] == 0xFF);
+    try std.testing.expect(int1.array[2] == 0x01);
+    try std.testing.expect(int1.array[3] == 0x00);
 
     int1.array[0] = 0xFF;
     int1.array[1] = 0xFF;
@@ -677,13 +789,13 @@ test "addInPlace" {
     int2.array[2] = 0x00;
     int2.array[3] = 0x00;
 
-    _ = int1.subInPlace(int2);
+    _ = int1.addInPlace(int2);
 
     // 0000_0000 0000_0000 0000_0000 0000_0000
-    try std.testing.expect(int1.array[0] == 0b0000_0000);
-    try std.testing.expect(int1.array[1] == 0b0000_0000);
-    try std.testing.expect(int1.array[2] == 0b0000_0000);
-    try std.testing.expect(int1.array[3] == 0b0000_0000);
+    try std.testing.expect(int1.array[0] == 0x00);
+    try std.testing.expect(int1.array[1] == 0x00);
+    try std.testing.expect(int1.array[2] == 0x00);
+    try std.testing.expect(int1.array[3] == 0x00);
 }
 
 test "sub" {
