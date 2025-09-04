@@ -110,7 +110,46 @@ pub const Interpreter = struct {
                 self.prg_ptr = self.read64BitNumber(self.prg_ptr + 1) -% 1;
             },
             0x11...0x16 => {
-                try self._error_handler.handleInterpreterError("Unimplemented instruction", self.mem.items[self.prg_ptr], self.prg_ptr, error.UnimplementedInstruction);
+                var is_true = false;
+                const bytes = self.readNumber(u16, self.prg_ptr + 9);
+                const var_1_ref = self.read64BitNumber(self.prg_ptr + 11);
+                const var_2_ref = self.read64BitNumber(self.prg_ptr + 19);
+
+                var var_1 = BigInt{ .array = self.mem.items[var_1_ref .. var_1_ref + bytes] };
+                var_1.reverseByteOrder();
+                defer var_1.reverseByteOrder();
+                var var_2 = BigInt{ .array = self.mem.items[var_2_ref .. var_2_ref + bytes] };
+                var_2.reverseByteOrder();
+                defer var_2.reverseByteOrder();
+
+                switch (self.mem.items[self.prg_ptr]) {
+                    0x11 => {
+                        if (var_1.isLessThan(var_2)) is_true = true;
+                    },
+                    0x12 => {
+                        if (var_1.isLessThanEqual(var_2)) is_true = true;
+                    },
+                    0x13 => {
+                        if (var_2.isLessThan(var_1)) is_true = true;
+                    },
+                    0x14 => {
+                        if (var_2.isLessThanEqual(var_1)) is_true = true;
+                    },
+                    0x15 => {
+                        if (std.mem.eql(u8, var_1.array, var_2.array)) is_true = true;
+                    },
+                    0x16 => {
+                        if (!std.mem.eql(u8, var_1.array, var_2.array)) is_true = true;
+                    },
+                    else => unreachable,
+                }
+
+                if (is_true)
+                    self.prg_ptr = self.read64BitNumber(self.prg_ptr + 1) -% 1
+                else {
+                    // 8 + 2 + 8 + 8
+                    self.prg_ptr += 26;
+                }
             },
             0x17 => {
                 const address = self.read64BitNumber(self.prg_ptr + 1);
