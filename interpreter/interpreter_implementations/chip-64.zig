@@ -421,7 +421,40 @@ pub const Interpreter = struct {
 
                 to_mod_int.writeBigEndian(self.mem.items[to_mod_ref .. to_mod_ref + bytes]);
             },
-            0x50...0x5C => {
+            0x50...0x53 => {
+                // TODO: Eliminate allocations
+                const bytes = self.readNumber(u16, self.prg_ptr + 1);
+                defer self.prg_ptr += 2;
+                const to_shift_ref = self.read64BitNumber(self.prg_ptr + 3);
+                defer self.prg_ptr += 8;
+                if (to_shift_ref >= self.mem.items.len) {
+                    try self._error_handler.handleInterpreterError("Out of bounds of memory", self.mem.items[self.prg_ptr], self.prg_ptr, error.OutOfBounds);
+                    return error.ErrorPrinted;
+                }
+                const shift_by_ref = self.prg_ptr + 11;
+                defer self.prg_ptr += 3;
+
+                var to_shift_int = try BigInt.init(allocator, bytes);
+                defer to_shift_int.deinit(allocator);
+                to_shift_int.readBigEndian(self.mem.items[to_shift_ref .. to_shift_ref + bytes]);
+
+                var shift_by_int = try BigInt.init(allocator, 3);
+                defer shift_by_int.deinit(allocator);
+                shift_by_int.readBigEndian(self.mem.items[shift_by_ref .. shift_by_ref + 3]);
+                // This is stupid
+                try shift_by_int.setByteLength(@max(3, bytes), allocator);
+
+                switch (self.mem.items[self.prg_ptr]) {
+                    0x50 => to_shift_int.leftShiftInPlace(shift_by_int),
+                    0x51 => to_shift_int.leftShiftInPlaceSaturate(shift_by_int),
+                    0x52 => to_shift_int.rightShiftInPlace(shift_by_int),
+                    0x53 => to_shift_int.rightShiftInPlaceSaturate(shift_by_int),
+                    else => unreachable,
+                }
+
+                to_shift_int.writeBigEndian(self.mem.items[to_shift_ref .. to_shift_ref + bytes]);
+            },
+            0x54...0x5C => {
                 try self._error_handler.handleInterpreterError("Unimplemented instruction", self.mem.items[self.prg_ptr], self.prg_ptr, error.UnimplementedInstruction);
             },
             0x60...0x67 => {
