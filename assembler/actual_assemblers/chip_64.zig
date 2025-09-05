@@ -627,9 +627,8 @@ fn assembleInstructions(
             try binary.resize(allocator, binary.items.len + T_int);
             bigint.writeBigEndian(binary.items[binary.items.len - T_int ..]);
             binary_index.* += T_int;
-        } else if (eql(assembly_opcode, "not")) blk: {
+        } else if (eql(assembly_opcode, "not")) {
             try binary.append(allocator, 0x5A);
-            const instruction_index: usize = binary.items.len - 1;
             binary_index.* += 1;
 
             const T_int: u16 = getInt(allocator, error_writer, u16, &splt_line, line_number.*, .strict, cpu_endianness) catch |err| {
@@ -642,22 +641,8 @@ fn assembleInstructions(
                 if (err == error.ErrorPrinted) continue :line_loop else return err;
             })));
             binary_index.* += 8;
-            var bigint = getBigInt(allocator, error_writer, T_int, &splt_line, line_number.*, .incorrect) catch |err| {
-                if (err == error.Incorrect) {
-                    try binary.appendSlice(allocator, &@as([8]u8, @bitCast(getAddress(allocator, error_writer, &splt_line, line_number.*, binary_index.*, alias_calls) catch |err2| {
-                        if (err2 == error.ErrorPrinted) continue :line_loop else return err2;
-                    })));
-                    binary_index.* += 8;
-                    binary.items[instruction_index] += 1;
-                    break :blk;
-                } else if (err == error.ErrorPrinted) continue :line_loop else return err;
-            } orelse unreachable;
-            defer bigint.deinit(allocator);
-            try binary.resize(allocator, binary.items.len + T_int);
-            bigint.writeBigEndian(binary.items[binary.items.len - T_int ..]);
-            binary_index.* += T_int;
         } else if (eql(assembly_opcode, "rand")) {
-            try binary.append(allocator, 0x5C);
+            try binary.append(allocator, 0x5B);
             binary_index.* += 1;
 
             const T_int: u16 = getInt(allocator, error_writer, u16, &splt_line, line_number.*, .strict, cpu_endianness) catch |err| {
