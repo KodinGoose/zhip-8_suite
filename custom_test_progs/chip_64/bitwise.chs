@@ -1,3 +1,5 @@
+# Also tests rand opcode
+
 resolution 64 32
 jump :shift_left
 
@@ -201,19 +203,39 @@ not1:
 	not 9 :to_not1
 	add 9 :not1_call :to_not1
 	not1_call: call :wrong_not1
-halt
+jump :rand
 
 to_not1: create 3 0xFFFFFF 0xFFFFFF 0xFFFFFE
 
 wrong_not1:
 ret
 
-cnotrect_not1:
+correct_not1:
 	draw 9 9 :not1_x :not1_y :star
 ret
 
 not1_x: create 4 54
 not1_y: create 4 7
+
+
+rand:
+	rand 9 :to_rand
+	and 9 :to_rand 1
+	add 9 :rand_call :to_rand
+	rand_call: call :wrong_rand
+halt
+
+to_rand: reserve 9
+
+wrong_rand:
+ret
+
+cnotrect_rand:
+	draw 9 9 :rand_x :rand_y :star
+ret
+
+rand_x: create 4 54
+rand_y: create 4 17
 
 
 star:
