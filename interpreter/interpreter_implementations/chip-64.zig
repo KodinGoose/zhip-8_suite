@@ -32,6 +32,7 @@ pub const Interpreter = struct {
     sound_timer: u8 = 0,
     hertz_counter: usize = 0,
     _error_handler: ErrorHandler,
+    _rand_gen: std.Random.DefaultPrng,
 
     /// mem includes program code
     /// mem in unmodified
@@ -48,6 +49,7 @@ pub const Interpreter = struct {
                 ._writer = err_writer,
                 ._panic_on_error = args.interpreter_panic_on_error,
             },
+            ._rand_gen = .init(@truncate(@as(u128, @bitCast(std.time.nanoTimestamp())))),
         };
     }
 
@@ -567,7 +569,34 @@ pub const Interpreter = struct {
                 to_not_int.writeBigEndian(self.mem.items[to_not_ref .. to_not_ref + bytes]);
             },
             0x5B => {
-                try self._error_handler.handleInterpreterError("Unimplemented instruction", self.mem.items[self.prg_ptr], self.prg_ptr, error.UnimplementedInstruction);
+                // TODO: Eliminate allocations
+                const bytes = self.readNumber(u16, self.prg_ptr + 1);
+                defer self.prg_ptr += 2;
+                const to_rand_ref = self.read64BitNumber(self.prg_ptr + 3);
+                defer self.prg_ptr += 8;
+                if (to_rand_ref >= self.mem.items.len) {
+                    try self._error_handler.handleInterpreterError("Out of bounds of memory", self.mem.items[self.prg_ptr], self.prg_ptr, error.OutOfBounds);
+                    return error.ErrorPrinted;
+                }
+
+                var to_rand_int = try BigInt.init(allocator, bytes);
+                defer to_rand_int.deinit(allocator);
+                to_rand_int.readBigEndian(self.mem.items[to_rand_ref .. to_rand_ref + bytes]);
+
+                for (0..bytes / 8) |i| {
+                    const rand_bytes: [8]u8 = @bitCast(self.rand_gen.next());
+                    for (i * 8..i * 8 + 8, 0..) |j, k| {
+                        to_rand_int.array[j] = rand_bytes[k];
+                    }
+                }
+                if (bytes % 8 != 0) {
+                    const rand_bytes: [8]u8 = @bitCast(self.rand_gen.next());
+                    for (to_rand_int.array.len / 8 * 8..to_rand_int.array.len, 0..) |j, k| {
+                        to_rand_int.array[j] = rand_bytes[k];
+                    }
+                }
+
+                to_rand_int.writeBigEndian(self.mem.items[to_rand_ref .. to_rand_ref + bytes]);
             },
             0x60...0x67 => {
                 try self._error_handler.handleInterpreterError("Unimplemented instruction", self.mem.items[self.prg_ptr], self.prg_ptr, error.UnimplementedInstruction);
