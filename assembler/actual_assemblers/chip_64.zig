@@ -755,7 +755,7 @@ fn assembleInstructions(
                 if (err == error.ErrorPrinted) continue :line_loop else return err;
             })));
             binary_index.* += 8;
-        } else if (eql(assembly_opcode, "interpreter_sleeping")) {
+        } else if (eql(assembly_opcode, "auto_sleep")) {
             try binary.append(allocator, 0x81);
             binary_index.* += 1;
 
