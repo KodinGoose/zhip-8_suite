@@ -63,11 +63,6 @@ pub fn assemble(allocator: std.mem.Allocator, error_writer: *std.Io.Writer, bina
     return binary.items;
 }
 
-const Continue = enum(bool) {
-    stop = false,
-    keep_going = true,
-};
-
 fn assembleInstructions(
     allocator: std.mem.Allocator,
     error_writer: *std.Io.Writer,
