@@ -1,0 +1,9 @@
+This file contains ideas for new features which haven't been implemented yet
+
+Assembly:
+	Being able to pass aliases with '*' instead of ':'
+		'*' would pass the an aliases address as a number and ':' would pass what is at the aliases address
+		Example:
+			set 8 :func_1_arg_1 *func_2
+			call :func_1
+			Here func_1 would call the address written to func_1_arg_1
