@@ -155,7 +155,6 @@ pub const Interpreter = struct {
             },
             0x17 => {
                 const address = self.read64BitNumber(self.prg_ptr + 1);
-                self.prg_ptr += 8;
                 try self.stack.push(allocator, self.prg_ptr);
                 self.prg_ptr = address -% 1;
             },
@@ -598,8 +597,53 @@ pub const Interpreter = struct {
 
                 to_rand_int.writeBigEndian(self.mem.items[to_rand_ref .. to_rand_ref + bytes]);
             },
-            0x60...0x67 => {
-                try self._error_handler.handleInterpreterError("Unimplemented instruction", self.mem.items[self.prg_ptr], self.prg_ptr, error.UnimplementedInstruction);
+            0x60...0x63 => blk: {
+                const key = self.readNumber(u16, self.prg_ptr + 1);
+                const jump_address = self.readNumber(u64, self.prg_ptr + 3);
+
+                if (key < self.inputs.inputs.len) {
+                    if (self.inputs.inputs[key].down) {
+                        if (self.mem.items[self.prg_ptr] == 0x61 or self.mem.items[self.prg_ptr] == 0x63)
+                            try self.stack.push(allocator, self.prg_ptr);
+
+                        self.prg_ptr = jump_address -% 1;
+                        break :blk;
+                    }
+
+                    if (self.mem.items[self.prg_ptr] == 0x62 or self.mem.items[self.prg_ptr] == 0x63) {
+                        self.prg_ptr -%= 1;
+                        break :blk;
+                    }
+                } else {
+                    try self._error_handler.handleInterpreterError("Key out of range of possible inputs", self.mem.items[self.prg_ptr], self.prg_ptr, error.NonExistentKey);
+                }
+
+                // 2 + 8
+                self.prg_ptr +%= 10;
+            },
+            0x64...0x67 => blk: {
+                const key = self.readNumber(u16, self.prg_ptr + 1);
+                const jump_address = self.readNumber(u64, self.prg_ptr + 3);
+
+                if (key < self.inputs.inputs.len) {
+                    if (!self.inputs.inputs[key].down) {
+                        if (self.mem.items[self.prg_ptr] == 0x65 or self.mem.items[self.prg_ptr] == 0x67)
+                            try self.stack.push(allocator, self.prg_ptr);
+
+                        self.prg_ptr = jump_address -% 1;
+                        break :blk;
+                    }
+
+                    if (self.mem.items[self.prg_ptr] == 0x66 or self.mem.items[self.prg_ptr] == 0x67) {
+                        self.prg_ptr -%= 1;
+                        break :blk;
+                    }
+                } else {
+                    try self._error_handler.handleInterpreterError("Key out of range of possible inputs", self.mem.items[self.prg_ptr], self.prg_ptr, error.NonExistentKey);
+                }
+
+                // 2 + 8
+                self.prg_ptr +%= 10;
             },
             0x70 => {
                 const sprite_w: usize = self.readNumber(u16, self.prg_ptr + 1);
