@@ -646,8 +646,35 @@ pub const Interpreter = struct {
 
                 extra_work = .update_screen;
             },
-            0x80...0x83 => {
-                try self._error_handler.handleInterpreterError("Unimplemented instruction", self.mem.items[self.prg_ptr], self.prg_ptr, error.UnimplementedInstruction);
+            0x80 => {
+                const time_ref: usize = self.read64BitNumber(self.prg_ptr + 1);
+                self.prg_ptr += 8;
+                const time_bytes: [16]u8 = @bitCast(std.mem.nativeToBig(i128, std.time.nanoTimestamp()));
+                for (self.mem.items[time_ref .. time_ref + 16], time_bytes) |*byte, time_byte| {
+                    byte.* = time_byte;
+                }
+            },
+            0x81 => {
+                defer self.prg_ptr += 1;
+                if (self.mem.items[self.prg_ptr + 1] == 0) {
+                    extra_work = .disable_auto_sleep;
+                } else if (self.mem.items[self.prg_ptr + 1] == 1) {
+                    extra_work = .enable_auto_sleep;
+                } else {
+                    try self._error_handler.handleInterpreterError("Invalid argument", self.mem.items[self.prg_ptr], self.prg_ptr, error.InvalidArgument);
+                }
+            },
+            0x82...0x83 => {
+                const sleep_for_ref =
+                    if (self.mem.items[self.prg_ptr] == 0x82)
+                        self.prg_ptr + 1
+                    else
+                        self.read64BitNumber(self.prg_ptr + 1);
+                self.prg_ptr += 8;
+
+                const sleep_for: u64 = self.read64BitNumber(sleep_for_ref);
+
+                std.Thread.sleep(sleep_for);
             },
             else => try self._error_handler.handleInterpreterError("Unknown instruction", self.mem.items[self.prg_ptr], self.prg_ptr, error.UnknownInstruction),
         }

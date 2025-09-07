@@ -26,6 +26,7 @@ var window: sdl.render.Window = undefined;
 var playfield: PlayField = PlayField{};
 var update_screen = false;
 var update_window = true;
+var auto_sleep = true;
 
 pub fn main() !void {
     var stderr_buf: [4096]u8 = undefined;
@@ -85,6 +86,8 @@ pub fn main() !void {
         };
         if (maybe_work) |work| {
             switch (work) {
+                .enable_auto_sleep => auto_sleep = true,
+                .disable_auto_sleep => auto_sleep = false,
                 .toggle_window_size_lock => try window.toggleResizable(),
                 .match_window_to_resolution => {
                     try window.setWinSize(interpreter.getDrawSurface().w, interpreter.getDrawSurface().h);
@@ -135,9 +138,11 @@ pub fn main() !void {
             if (val <= interpreter.getHertzCounter()) exit = true;
         }
 
-        const frame_end = sdl.C.SDL_GetTicksNS();
-        if (frame_end - frame_start <= 1_666_666) {
-            sdl.C.SDL_DelayNS(1_666_666 - (frame_end - frame_start));
+        if (auto_sleep) {
+            const frame_end = sdl.C.SDL_GetTicksNS();
+            if (frame_end - frame_start <= 1_666_666) {
+                sdl.C.SDL_DelayNS(1_666_666 - (frame_end - frame_start));
+            }
         }
     }
 }
