@@ -122,10 +122,10 @@ xor 3 :ret 0xAAAAAA
 xor 3 :ret *3
 xor 3 :ret :ret
 
-not 3 *3 0xAAAAAA
-not 3 :ret 0xAAAAAA
-not 3 :ret *3
-not 3 :ret :ret
+not 3 *3
+not 3 :ret
+not 3 :ret
+not 3 :ret
 
 rand 4 *3
 rand 4 :return
@@ -151,8 +151,8 @@ create 18 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
 
 time *3
 time :ret
-interpreter_sleeping off
-interpreter_sleeping on
+auto_sleep off
+auto_sleep on
 sleep 3
 sleep *3
 sleep :ret
