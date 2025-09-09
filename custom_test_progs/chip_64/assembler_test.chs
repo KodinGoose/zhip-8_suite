@@ -158,4 +158,12 @@ sleep *3
 sleep :ret
 
 create 16 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+create 9 0xFFFFFFFFFFFFFFFFFF
+
+jump :jump_to
+jump jump_to: *0xEE
+create 14 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+
+jump :jump_to_2
+create 8 jump_to_2: 0xEE
 create 15 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
