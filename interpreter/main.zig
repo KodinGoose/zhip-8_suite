@@ -153,47 +153,21 @@ fn eventLoop(interpreter_inputs: *Input, inputs: *Input) !void {
     var event: sdl.C.SDL_Event = undefined;
     while (sdl.C.SDL_PollEvent(&event)) {
         switch (event.type) {
-            sdl.C.SDL_EVENT_KEY_DOWN => switch (event.key.scancode) {
-                sdl.C.SDL_SCANCODE_1 => interpreter_inputs.keyDown(1),
-                sdl.C.SDL_SCANCODE_2 => interpreter_inputs.keyDown(2),
-                sdl.C.SDL_SCANCODE_3 => interpreter_inputs.keyDown(3),
-                sdl.C.SDL_SCANCODE_Q => interpreter_inputs.keyDown(4),
-                sdl.C.SDL_SCANCODE_W => interpreter_inputs.keyDown(5),
-                sdl.C.SDL_SCANCODE_E => interpreter_inputs.keyDown(6),
-                sdl.C.SDL_SCANCODE_A => interpreter_inputs.keyDown(7),
-                sdl.C.SDL_SCANCODE_S => interpreter_inputs.keyDown(8),
-                sdl.C.SDL_SCANCODE_D => interpreter_inputs.keyDown(9),
-                sdl.C.SDL_SCANCODE_X => interpreter_inputs.keyDown(0),
-                sdl.C.SDL_SCANCODE_Z => interpreter_inputs.keyDown(0xA),
-                sdl.C.SDL_SCANCODE_C => interpreter_inputs.keyDown(0xB),
-                sdl.C.SDL_SCANCODE_4 => interpreter_inputs.keyDown(0xC),
-                sdl.C.SDL_SCANCODE_R => interpreter_inputs.keyDown(0xD),
-                sdl.C.SDL_SCANCODE_F => interpreter_inputs.keyDown(0xE),
-                sdl.C.SDL_SCANCODE_V => interpreter_inputs.keyDown(0xF),
-                sdl.C.SDL_SCANCODE_ESCAPE => inputs.keyDown(0),
-                sdl.C.SDL_SCANCODE_HOME => inputs.keyDown(1),
-                else => continue,
+            sdl.C.SDL_EVENT_KEY_DOWN => {
+                interpreter_inputs.keyDown(event.key.scancode);
+                switch (event.key.scancode) {
+                    sdl.C.SDL_SCANCODE_ESCAPE => inputs.keyDown(0),
+                    sdl.C.SDL_SCANCODE_HOME => inputs.keyDown(1),
+                    else => continue,
+                }
             },
-            sdl.C.SDL_EVENT_KEY_UP => switch (event.key.scancode) {
-                sdl.C.SDL_SCANCODE_1 => interpreter_inputs.keyUp(1),
-                sdl.C.SDL_SCANCODE_2 => interpreter_inputs.keyUp(2),
-                sdl.C.SDL_SCANCODE_3 => interpreter_inputs.keyUp(3),
-                sdl.C.SDL_SCANCODE_Q => interpreter_inputs.keyUp(4),
-                sdl.C.SDL_SCANCODE_W => interpreter_inputs.keyUp(5),
-                sdl.C.SDL_SCANCODE_E => interpreter_inputs.keyUp(6),
-                sdl.C.SDL_SCANCODE_A => interpreter_inputs.keyUp(7),
-                sdl.C.SDL_SCANCODE_S => interpreter_inputs.keyUp(8),
-                sdl.C.SDL_SCANCODE_D => interpreter_inputs.keyUp(9),
-                sdl.C.SDL_SCANCODE_X => interpreter_inputs.keyUp(0),
-                sdl.C.SDL_SCANCODE_Z => interpreter_inputs.keyUp(0xA),
-                sdl.C.SDL_SCANCODE_C => interpreter_inputs.keyUp(0xB),
-                sdl.C.SDL_SCANCODE_4 => interpreter_inputs.keyUp(0xC),
-                sdl.C.SDL_SCANCODE_R => interpreter_inputs.keyUp(0xD),
-                sdl.C.SDL_SCANCODE_F => interpreter_inputs.keyUp(0xE),
-                sdl.C.SDL_SCANCODE_V => interpreter_inputs.keyUp(0xF),
-                sdl.C.SDL_SCANCODE_ESCAPE => inputs.keyUp(0),
-                sdl.C.SDL_SCANCODE_HOME => inputs.keyUp(1),
-                else => continue,
+            sdl.C.SDL_EVENT_KEY_UP => {
+                interpreter_inputs.keyUp(event.key.scancode);
+                switch (event.key.scancode) {
+                    sdl.C.SDL_SCANCODE_ESCAPE => inputs.keyUp(0),
+                    sdl.C.SDL_SCANCODE_HOME => inputs.keyUp(1),
+                    else => continue,
+                }
             },
             sdl.C.SDL_EVENT_QUIT => exit = true,
             sdl.C.SDL_EVENT_WINDOW_RESIZED => update_window = true,

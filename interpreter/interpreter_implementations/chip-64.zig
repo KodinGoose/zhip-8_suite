@@ -601,7 +601,7 @@ pub const Interpreter = struct {
                 const key = self.readNumber(u16, self.prg_ptr + 1);
                 const jump_address = self.readNumber(u64, self.prg_ptr + 3);
 
-                if (key < self.inputs.inputs.len) {
+                if (key <= self.inputs.inputs.len) {
                     if (self.inputs.inputs[key].down) {
                         if (self.mem.items[self.prg_ptr] == 0x61 or self.mem.items[self.prg_ptr] == 0x63)
                             try self.stack.push(allocator, self.prg_ptr);
