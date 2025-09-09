@@ -10,15 +10,3 @@ Assembly:
 		Manually giving an address would happen with ':' instead of '*'
 		Example: "call *0x50" would instead be "call :0x50"
 		Manually giving an address with '*' would not be allowed since '*0x50' and '0x50' would literally be the same thing
-
-	Being able to alias an opcodes arguments
-		Example:
-			add 8 :call_arg 1
-			call call_arg: :exit
-			exit: exit
-			halt: halt
-		With the previous idea it could also be:
-			set 8 :call_arg *halt
-			call call_arg: :exit
-			exit: exit
-			halt: halt
