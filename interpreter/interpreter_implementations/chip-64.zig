@@ -73,6 +73,7 @@ pub const Interpreter = struct {
         switch (self.mem.items[self.prg_ptr]) {
             0x00 => {
                 self.prg_ptr -%= 1;
+                extra_work = .halt;
             },
             0x01 => {
                 extra_work = .exit;
@@ -151,9 +152,8 @@ pub const Interpreter = struct {
                 }
             },
             0x17 => {
-                const address = self.read64BitNumber(self.prg_ptr + 1);
-                try self.stack.push(allocator, self.prg_ptr);
-                self.prg_ptr = address -% 1;
+                try self.stack.push(allocator, self.prg_ptr + 8);
+                self.prg_ptr = self.read64BitNumber(self.prg_ptr + 1) -% 1;
             },
             0x20...0x21 => blk: {
                 defer self.prg_ptr += 16;
@@ -264,160 +264,43 @@ pub const Interpreter = struct {
                     self.prg_ptr += 8;
                 }
             },
-            0x40...0x41 => {
-                // TODO: Eliminate allocations
+            0x40...0x49 => {
                 const bytes = self.readNumber(u16, self.prg_ptr + 1);
                 defer self.prg_ptr += 2;
-                const add_to_ref = self.read64BitNumber(self.prg_ptr + 3);
+                const to_change_ref = self.read64BitNumber(self.prg_ptr + 3);
                 defer self.prg_ptr += 8;
-                if (add_to_ref >= self.mem.items.len) {
-                    try self._error_handler.handleInterpreterError("Out of bounds of memory", self.mem.items[self.prg_ptr], self.prg_ptr, error.OutOfBounds);
+                if (to_change_ref >= self.mem.items.len) {
+                    try self._error_handler.handleInterpreterError("Out of bounds of memory (first arg)", self.mem.items[self.prg_ptr], self.prg_ptr, error.OutOfBounds);
                     return error.ErrorPrinted;
                 }
-                const to_add_ref =
-                    if (self.mem.items[self.prg_ptr] == 0x40) blk: {
-                        self.prg_ptr += bytes;
-                        break :blk self.prg_ptr + 11 - bytes;
-                    } else blk: {
-                        self.prg_ptr += 8;
-                        break :blk self.read64BitNumber(self.prg_ptr + 11 - 8);
-                    };
 
-                var add_to_int = try BigInt.init(allocator, bytes);
-                defer add_to_int.deinit(allocator);
-                add_to_int.readBigEndian(self.mem.items[add_to_ref .. add_to_ref + bytes]);
-
-                var to_add_int = try BigInt.init(allocator, bytes);
-                defer to_add_int.deinit(allocator);
-                to_add_int.readBigEndian(self.mem.items[to_add_ref .. to_add_ref + bytes]);
-
-                _ = add_to_int.addInPlace(to_add_int);
-
-                add_to_int.writeBigEndian(self.mem.items[add_to_ref .. add_to_ref + bytes]);
-            },
-            0x42...0x43 => {
-                // TODO: Eliminate allocations
-                const bytes = self.readNumber(u16, self.prg_ptr + 1);
-                defer self.prg_ptr += 2;
-                const sub_from_ref = self.read64BitNumber(self.prg_ptr + 3);
-                defer self.prg_ptr += 8;
-                if (sub_from_ref >= self.mem.items.len) {
-                    try self._error_handler.handleInterpreterError("Out of bounds of memory", self.mem.items[self.prg_ptr], self.prg_ptr, error.OutOfBounds);
+                const change_with_ref =
+                    if (self.mem.items[self.prg_ptr] % 2 == 0)
+                        self.prg_ptr + 11
+                    else
+                        self.read64BitNumber(self.prg_ptr + 11);
+                defer self.prg_ptr += if (self.mem.items[self.prg_ptr] % 2 == 0) bytes else 8;
+                if (change_with_ref >= self.mem.items.len) {
+                    try self._error_handler.handleInterpreterError("Out of bounds of memory (second arg)", self.mem.items[self.prg_ptr], self.prg_ptr, error.OutOfBounds);
                     return error.ErrorPrinted;
                 }
-                const to_sub_ref =
-                    if (self.mem.items[self.prg_ptr] == 0x42) blk: {
-                        self.prg_ptr += bytes;
-                        break :blk self.prg_ptr + 11 - bytes;
-                    } else blk: {
-                        self.prg_ptr += 8;
-                        break :blk self.read64BitNumber(self.prg_ptr + 11 - 8);
-                    };
 
-                var sub_from_int = try BigInt.init(allocator, bytes);
-                defer sub_from_int.deinit(allocator);
-                sub_from_int.readBigEndian(self.mem.items[sub_from_ref .. sub_from_ref + bytes]);
+                var to_change_int = BigInt{ .array = self.mem.items[to_change_ref .. to_change_ref + bytes] };
+                to_change_int.reverseByteOrder();
+                defer to_change_int.reverseByteOrder();
 
-                var to_sub_int = try BigInt.init(allocator, bytes);
-                defer to_sub_int.deinit(allocator);
-                to_sub_int.readBigEndian(self.mem.items[to_sub_ref .. to_sub_ref + bytes]);
+                var change_with_int = BigInt{ .array = self.mem.items[change_with_ref .. change_with_ref + bytes] };
+                change_with_int.reverseByteOrder();
+                defer change_with_int.reverseByteOrder();
 
-                _ = sub_from_int.subInPlace(to_sub_int);
-
-                sub_from_int.writeBigEndian(self.mem.items[sub_from_ref .. sub_from_ref + bytes]);
-            },
-            0x44...0x45 => {
-                // TODO: Eliminate allocations
-                const bytes = self.readNumber(u16, self.prg_ptr + 1);
-                defer self.prg_ptr += 2;
-                const to_mul_ref = self.read64BitNumber(self.prg_ptr + 3);
-                defer self.prg_ptr += 8;
-                if (to_mul_ref >= self.mem.items.len) {
-                    try self._error_handler.handleInterpreterError("Out of bounds of memory", self.mem.items[self.prg_ptr], self.prg_ptr, error.OutOfBounds);
-                    return error.ErrorPrinted;
+                switch (self.mem.items[self.prg_ptr]) {
+                    0x40...0x41 => _ = to_change_int.addInPlace(change_with_int),
+                    0x42...0x43 => _ = to_change_int.subInPlace(change_with_int),
+                    0x44...0x45 => _ = try to_change_int.mulInPlace(change_with_int, allocator),
+                    0x46...0x47 => _ = try to_change_int.divInPlace(change_with_int, allocator),
+                    0x48...0x49 => _ = try to_change_int.modInPlace(change_with_int, allocator),
+                    else => unreachable,
                 }
-                const mul_with_ref =
-                    if (self.mem.items[self.prg_ptr] == 0x44) blk: {
-                        self.prg_ptr += bytes;
-                        break :blk self.prg_ptr + 11 - bytes;
-                    } else blk: {
-                        self.prg_ptr += 8;
-                        break :blk self.read64BitNumber(self.prg_ptr + 11 - 8);
-                    };
-
-                var to_mul_int = try BigInt.init(allocator, bytes);
-                defer to_mul_int.deinit(allocator);
-                to_mul_int.readBigEndian(self.mem.items[to_mul_ref .. to_mul_ref + bytes]);
-
-                var mul_with_int = try BigInt.init(allocator, bytes);
-                defer mul_with_int.deinit(allocator);
-                mul_with_int.readBigEndian(self.mem.items[mul_with_ref .. mul_with_ref + bytes]);
-
-                _ = try to_mul_int.mulInPlace(mul_with_int, allocator);
-
-                to_mul_int.writeBigEndian(self.mem.items[to_mul_ref .. to_mul_ref + bytes]);
-            },
-            0x46...0x47 => {
-                // TODO: Eliminate allocations
-                const bytes = self.readNumber(u16, self.prg_ptr + 1);
-                defer self.prg_ptr += 2;
-                const to_div_ref = self.read64BitNumber(self.prg_ptr + 3);
-                defer self.prg_ptr += 8;
-                if (to_div_ref >= self.mem.items.len) {
-                    try self._error_handler.handleInterpreterError("Out of bounds of memory", self.mem.items[self.prg_ptr], self.prg_ptr, error.OutOfBounds);
-                    return error.ErrorPrinted;
-                }
-                const div_with_ref =
-                    if (self.mem.items[self.prg_ptr] == 0x46) blk: {
-                        self.prg_ptr += bytes;
-                        break :blk self.prg_ptr + 11 - bytes;
-                    } else blk: {
-                        self.prg_ptr += 8;
-                        break :blk self.read64BitNumber(self.prg_ptr + 11 - 8);
-                    };
-
-                var to_div_int = try BigInt.init(allocator, bytes);
-                defer to_div_int.deinit(allocator);
-                to_div_int.readBigEndian(self.mem.items[to_div_ref .. to_div_ref + bytes]);
-
-                var div_with_int = try BigInt.init(allocator, bytes);
-                defer div_with_int.deinit(allocator);
-                div_with_int.readBigEndian(self.mem.items[div_with_ref .. div_with_ref + bytes]);
-
-                try to_div_int.divInPlace(div_with_int, allocator);
-
-                to_div_int.writeBigEndian(self.mem.items[to_div_ref .. to_div_ref + bytes]);
-            },
-            0x48...0x49 => {
-                // TODO: Eliminate allocations
-                const bytes = self.readNumber(u16, self.prg_ptr + 1);
-                defer self.prg_ptr += 2;
-                const to_mod_ref = self.read64BitNumber(self.prg_ptr + 3);
-                defer self.prg_ptr += 8;
-                if (to_mod_ref >= self.mem.items.len) {
-                    try self._error_handler.handleInterpreterError("Out of bounds of memory", self.mem.items[self.prg_ptr], self.prg_ptr, error.OutOfBounds);
-                    return error.ErrorPrinted;
-                }
-                const mod_by_ref =
-                    if (self.mem.items[self.prg_ptr] == 0x48) blk: {
-                        self.prg_ptr += bytes;
-                        break :blk self.prg_ptr + 11 - bytes;
-                    } else blk: {
-                        self.prg_ptr += 8;
-                        break :blk self.read64BitNumber(self.prg_ptr + 11 - 8);
-                    };
-
-                var to_mod_int = try BigInt.init(allocator, bytes);
-                defer to_mod_int.deinit(allocator);
-                to_mod_int.readBigEndian(self.mem.items[to_mod_ref .. to_mod_ref + bytes]);
-
-                var mod_by_int = try BigInt.init(allocator, bytes);
-                defer mod_by_int.deinit(allocator);
-                mod_by_int.readBigEndian(self.mem.items[mod_by_ref .. mod_by_ref + bytes]);
-
-                try to_mod_int.modInPlace(mod_by_int, allocator);
-
-                to_mod_int.writeBigEndian(self.mem.items[to_mod_ref .. to_mod_ref + bytes]);
             },
             0x50...0x53 => {
                 // TODO: Eliminate allocations

@@ -67,6 +67,18 @@ pub const Interpreter = struct {
     //     };
     // }
 
+    pub fn getProgramPointer(self: *@This()) *usize {
+        return switch (self._tag) {
+            // .chip_8 => &self._real_interpreter.chip8.prg_ptr,
+            // .schip1_0 => &self._real_interpreter.schip1_0.prg_ptr,
+            // .schip1_1 => &self._real_interpreter.schip1_1.prg_ptr,
+            // .schip_modern => &self._real_interpreter.schip_modern.prg_ptr,
+            .chip_64 => &self._real_interpreter.chip_64.prg_ptr,
+            // temp code until I get back the other interpreter implementations
+            else => unreachable,
+        };
+    }
+
     pub fn getDrawSurface(self: *@This()) *Surface {
         return switch (self._tag) {
             // .chip_8 => self._real_interpreter.chip8.draw_buf,

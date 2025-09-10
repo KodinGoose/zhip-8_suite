@@ -27,6 +27,7 @@ var playfield: PlayField = PlayField{};
 var update_screen = false;
 var update_window = true;
 var auto_sleep = true;
+var halted = false;
 
 pub fn main() !void {
     var stderr_buf: [4096]u8 = undefined;
@@ -97,6 +98,10 @@ pub fn main() !void {
                 .resolution_changed => update_window = true,
                 .update_screen => update_screen = true,
                 .exit => exit = true,
+                .halt => if (!halted) {
+                    stderr.print("Halted at: {d} (0x{x})\n", .{ interpreter.getProgramPointer().*, interpreter.getProgramPointer().* }) catch {};
+                    halted = true;
+                },
             }
         }
 
@@ -138,7 +143,7 @@ pub fn main() !void {
             if (val <= interpreter.getHertzCounter()) exit = true;
         }
 
-        if (auto_sleep) {
+        if (auto_sleep or halted) {
             const frame_end = sdl.C.SDL_GetTicksNS();
             if (frame_end - frame_start <= 1_666_666) {
                 sdl.C.SDL_DelayNS(1_666_666 - (frame_end - frame_start));

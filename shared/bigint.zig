@@ -205,13 +205,12 @@ pub const BigInt = struct {
         var overflow = false;
 
         var result = try self.mulNoCutOff(other, allocator);
+        defer result.deinit(allocator);
         for (result.array[self.array.len..]) |byte| {
             if (byte != 0) overflow = true;
         }
-        result.array = try allocator.realloc(result.array, self.array.len);
 
-        self.deinit(allocator);
-        self.* = result;
+        @memcpy(self.array, result.array[0..self.array.len]);
         return overflow;
     }
 
@@ -269,9 +268,9 @@ pub const BigInt = struct {
     /// Self.array.len and other.array.len must be the same
     pub fn divInPlace(self: *@This(), other: @This(), allocator: std.mem.Allocator) !void {
         std.debug.assert(self.array.len == other.array.len);
-        const tmp_int = try self.div(other, allocator);
-        self.deinit(allocator);
-        self.* = tmp_int;
+        var tmp_int = try self.div(other, allocator);
+        defer tmp_int.deinit(allocator);
+        @memcpy(self.array, tmp_int.array);
     }
 
     /// Self.array.len and other.array.len must be the same
@@ -284,9 +283,9 @@ pub const BigInt = struct {
     /// Self.array.len and other.array.len must be the same
     pub fn modInPlace(self: *@This(), other: @This(), allocator: std.mem.Allocator) !void {
         std.debug.assert(self.array.len == other.array.len);
-        const tmp_int = try self.mod(other, allocator);
-        self.deinit(allocator);
-        self.* = tmp_int;
+        var tmp_int = try self.mod(other, allocator);
+        defer tmp_int.deinit(allocator);
+        @memcpy(self.array, tmp_int.array);
     }
 
     const DivReturnType = enum(u8) { quotient, remainder };
