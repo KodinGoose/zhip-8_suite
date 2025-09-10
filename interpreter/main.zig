@@ -99,7 +99,12 @@ pub fn main() !void {
                 .update_screen => update_screen = true,
                 .exit => exit = true,
                 .halt => if (!halted) {
-                    stderr.print("Halted at: {d} (0x{x})\n", .{ interpreter.getProgramPointer().*, interpreter.getProgramPointer().* }) catch {};
+                    stderr.print(
+                        "Halted at: {d} (0x{x})\n",
+                        .{ interpreter.getProgramPointer().*, interpreter.getProgramPointer().* },
+                    ) catch {};
+                    // We want to flush since we are unlikely to encounter more errors
+                    stderr.flush() catch {};
                     halted = true;
                 },
             }
