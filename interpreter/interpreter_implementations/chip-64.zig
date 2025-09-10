@@ -105,9 +105,6 @@ pub const Interpreter = struct {
                 self.prg_ptr +%= 4;
                 extra_work = .resolution_changed;
             },
-            0x07...0x0A => {
-                try self._error_handler.handleInterpreterError("Unimplemented instruction", self.mem.items[self.prg_ptr], self.prg_ptr, error.UnimplementedInstruction);
-            },
             0x10 => {
                 self.prg_ptr = self.read64BitNumber(self.prg_ptr + 1) -% 1;
             },
