@@ -303,7 +303,6 @@ pub const Interpreter = struct {
                 }
             },
             0x50...0x53 => {
-                // TODO: Eliminate allocations
                 const bytes = self.readNumber(u16, self.prg_ptr + 1);
                 defer self.prg_ptr += 2;
                 const to_shift_ref = self.read64BitNumber(self.prg_ptr + 3);
@@ -315,15 +314,16 @@ pub const Interpreter = struct {
                 const shift_by_ref = self.prg_ptr + 11;
                 defer self.prg_ptr += 3;
 
-                var to_shift_int = try BigInt.init(allocator, bytes);
-                defer to_shift_int.deinit(allocator);
-                to_shift_int.readBigEndian(self.mem.items[to_shift_ref .. to_shift_ref + bytes]);
+                var to_shift_int = BigInt{ .array = self.mem.items[to_shift_ref .. to_shift_ref + bytes] };
+                to_shift_int.reverseByteOrder();
+                defer to_shift_int.reverseByteOrder();
 
+                // TODO: Somehow eliminate this allocation
                 var shift_by_int = try BigInt.init(allocator, 3);
                 defer shift_by_int.deinit(allocator);
                 shift_by_int.readBigEndian(self.mem.items[shift_by_ref .. shift_by_ref + 3]);
                 // This is stupid
-                try shift_by_int.setByteLength(@max(3, bytes), allocator);
+                try shift_by_int.setByteLength(bytes, allocator);
 
                 switch (self.mem.items[self.prg_ptr]) {
                     0x50 => to_shift_int.leftShiftInPlace(shift_by_int),
@@ -332,104 +332,44 @@ pub const Interpreter = struct {
                     0x53 => to_shift_int.rightShiftInPlaceSaturate(shift_by_int),
                     else => unreachable,
                 }
-
-                to_shift_int.writeBigEndian(self.mem.items[to_shift_ref .. to_shift_ref + bytes]);
             },
-            0x54...0x55 => {
-                // TODO: Eliminate allocations
+            0x54...0x59 => {
                 const bytes = self.readNumber(u16, self.prg_ptr + 1);
                 defer self.prg_ptr += 2;
-                const to_and_ref = self.read64BitNumber(self.prg_ptr + 3);
+                const to_change_ref = self.read64BitNumber(self.prg_ptr + 3);
                 defer self.prg_ptr += 8;
-                if (to_and_ref >= self.mem.items.len) {
-                    try self._error_handler.handleInterpreterError("Out of bounds of memory", self.mem.items[self.prg_ptr], self.prg_ptr, error.OutOfBounds);
+                if (to_change_ref >= self.mem.items.len) {
+                    try self._error_handler.handleInterpreterError("Out of bounds of memory (first arg)", self.mem.items[self.prg_ptr], self.prg_ptr, error.OutOfBounds);
                     return error.ErrorPrinted;
                 }
-                const and_by_ref =
-                    if (self.mem.items[self.prg_ptr] == 0x54) blk: {
-                        self.prg_ptr += bytes;
-                        break :blk self.prg_ptr + 11 - bytes;
-                    } else blk: {
-                        self.prg_ptr += 8;
-                        break :blk self.read64BitNumber(self.prg_ptr + 11 - 8);
-                    };
 
-                var to_and_int = try BigInt.init(allocator, bytes);
-                defer to_and_int.deinit(allocator);
-                to_and_int.readBigEndian(self.mem.items[to_and_ref .. to_and_ref + bytes]);
-
-                var and_by_int = try BigInt.init(allocator, bytes);
-                defer and_by_int.deinit(allocator);
-                and_by_int.readBigEndian(self.mem.items[and_by_ref .. and_by_ref + bytes]);
-
-                to_and_int.bitwiseAndInPlace(and_by_int);
-
-                to_and_int.writeBigEndian(self.mem.items[to_and_ref .. to_and_ref + bytes]);
-            },
-            0x56...0x57 => {
-                // TODO: Eliminate allocations
-                const bytes = self.readNumber(u16, self.prg_ptr + 1);
-                defer self.prg_ptr += 2;
-                const to_or_ref = self.read64BitNumber(self.prg_ptr + 3);
-                defer self.prg_ptr += 8;
-                if (to_or_ref >= self.mem.items.len) {
-                    try self._error_handler.handleInterpreterError("Out of bounds of memory", self.mem.items[self.prg_ptr], self.prg_ptr, error.OutOfBounds);
+                const change_with_ref =
+                    if (self.mem.items[self.prg_ptr] % 2 == 0)
+                        self.prg_ptr + 11
+                    else
+                        self.read64BitNumber(self.prg_ptr + 11);
+                defer self.prg_ptr += if (self.mem.items[self.prg_ptr] % 2 == 0) bytes else 8;
+                if (change_with_ref >= self.mem.items.len) {
+                    try self._error_handler.handleInterpreterError("Out of bounds of memory (second arg)", self.mem.items[self.prg_ptr], self.prg_ptr, error.OutOfBounds);
                     return error.ErrorPrinted;
                 }
-                const or_by_ref =
-                    if (self.mem.items[self.prg_ptr] == 0x56) blk: {
-                        self.prg_ptr += bytes;
-                        break :blk self.prg_ptr + 11 - bytes;
-                    } else blk: {
-                        self.prg_ptr += 8;
-                        break :blk self.read64BitNumber(self.prg_ptr + 11 - 8);
-                    };
 
-                var to_or_int = try BigInt.init(allocator, bytes);
-                defer to_or_int.deinit(allocator);
-                to_or_int.readBigEndian(self.mem.items[to_or_ref .. to_or_ref + bytes]);
+                var to_change_int = BigInt{ .array = self.mem.items[to_change_ref .. to_change_ref + bytes] };
+                to_change_int.reverseByteOrder();
+                defer to_change_int.reverseByteOrder();
 
-                var or_by_int = try BigInt.init(allocator, bytes);
-                defer or_by_int.deinit(allocator);
-                or_by_int.readBigEndian(self.mem.items[or_by_ref .. or_by_ref + bytes]);
+                var change_with_int = BigInt{ .array = self.mem.items[change_with_ref .. change_with_ref + bytes] };
+                change_with_int.reverseByteOrder();
+                defer change_with_int.reverseByteOrder();
 
-                to_or_int.bitwisOrInPlace(or_by_int);
-
-                to_or_int.writeBigEndian(self.mem.items[to_or_ref .. to_or_ref + bytes]);
-            },
-            0x58...0x59 => {
-                // TODO: Eliminate allocations
-                const bytes = self.readNumber(u16, self.prg_ptr + 1);
-                defer self.prg_ptr += 2;
-                const to_xor_ref = self.read64BitNumber(self.prg_ptr + 3);
-                defer self.prg_ptr += 8;
-                if (to_xor_ref >= self.mem.items.len) {
-                    try self._error_handler.handleInterpreterError("Out of bounds of memory", self.mem.items[self.prg_ptr], self.prg_ptr, error.OutOfBounds);
-                    return error.ErrorPrinted;
+                switch (self.mem.items[self.prg_ptr]) {
+                    0x54...0x55 => _ = to_change_int.bitwiseAndInPlace(change_with_int),
+                    0x56...0x57 => _ = to_change_int.bitwiseOrInPlace(change_with_int),
+                    0x58...0x59 => _ = to_change_int.bitwiseXorInPlace(change_with_int),
+                    else => unreachable,
                 }
-                const xor_by_ref =
-                    if (self.mem.items[self.prg_ptr] == 0x58) blk: {
-                        self.prg_ptr += bytes;
-                        break :blk self.prg_ptr + 11 - bytes;
-                    } else blk: {
-                        self.prg_ptr += 8;
-                        break :blk self.read64BitNumber(self.prg_ptr + 11 - 8);
-                    };
-
-                var to_xor_int = try BigInt.init(allocator, bytes);
-                defer to_xor_int.deinit(allocator);
-                to_xor_int.readBigEndian(self.mem.items[to_xor_ref .. to_xor_ref + bytes]);
-
-                var xor_by_int = try BigInt.init(allocator, bytes);
-                defer xor_by_int.deinit(allocator);
-                xor_by_int.readBigEndian(self.mem.items[xor_by_ref .. xor_by_ref + bytes]);
-
-                to_xor_int.bitwiseXorInPlace(xor_by_int);
-
-                to_xor_int.writeBigEndian(self.mem.items[to_xor_ref .. to_xor_ref + bytes]);
             },
             0x5A => {
-                // TODO: Eliminate allocations
                 const bytes = self.readNumber(u16, self.prg_ptr + 1);
                 defer self.prg_ptr += 2;
                 const to_not_ref = self.read64BitNumber(self.prg_ptr + 3);
@@ -439,16 +379,13 @@ pub const Interpreter = struct {
                     return error.ErrorPrinted;
                 }
 
-                var to_not_int = try BigInt.init(allocator, bytes);
-                defer to_not_int.deinit(allocator);
-                to_not_int.readBigEndian(self.mem.items[to_not_ref .. to_not_ref + bytes]);
+                var to_not_int = BigInt{ .array = self.mem.items[to_not_ref .. to_not_ref + bytes] };
+                to_not_int.reverseByteOrder();
+                defer to_not_int.reverseByteOrder();
 
                 to_not_int.bitwiseNotInPlace();
-
-                to_not_int.writeBigEndian(self.mem.items[to_not_ref .. to_not_ref + bytes]);
             },
             0x5B => {
-                // TODO: Eliminate allocations
                 const bytes = self.readNumber(u16, self.prg_ptr + 1);
                 defer self.prg_ptr += 2;
                 const to_rand_ref = self.read64BitNumber(self.prg_ptr + 3);
@@ -458,9 +395,9 @@ pub const Interpreter = struct {
                     return error.ErrorPrinted;
                 }
 
-                var to_rand_int = try BigInt.init(allocator, bytes);
-                defer to_rand_int.deinit(allocator);
-                to_rand_int.readBigEndian(self.mem.items[to_rand_ref .. to_rand_ref + bytes]);
+                var to_rand_int = BigInt{ .array = self.mem.items[to_rand_ref .. to_rand_ref + bytes] };
+                to_rand_int.reverseByteOrder();
+                defer to_rand_int.reverseByteOrder();
 
                 for (0..bytes / 8) |i| {
                     const rand_bytes: [8]u8 = @bitCast(self.rand_gen.next());
@@ -474,8 +411,6 @@ pub const Interpreter = struct {
                         to_rand_int.array[j] = rand_bytes[k];
                     }
                 }
-
-                to_rand_int.writeBigEndian(self.mem.items[to_rand_ref .. to_rand_ref + bytes]);
             },
             0x60...0x63 => blk: {
                 const key = self.readNumber(u16, self.prg_ptr + 1);
