@@ -686,8 +686,11 @@ fn assembleInstructions(
             } else {
                 ErrorHandler.printAssembleError(error_writer, "Incorrect argument", line_number.*) catch continue :line_loop;
             }
-        } else if (eql(assembly_opcode, "draw")) {
+        } else if (eql(assembly_opcode, "present")) {
             try binary.append(allocator, 0x70);
+            binary_index.* += 1;
+        } else if (eql(assembly_opcode, "draw")) {
+            try binary.append(allocator, 0x71);
             binary_index.* += 1;
 
             try binary.appendSlice(allocator, &@as([2]u8, @bitCast(getInt(allocator, error_writer, u16, &splt_line, line_number.*, binary_index.*, aliases, .strict, .big) catch |err| {

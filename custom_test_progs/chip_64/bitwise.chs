@@ -14,6 +14,7 @@ to_shift_left: create 9 15
 
 correct_shift_left:
 	draw 9 9 :shift_left_x :shift_left_y :star
+	present
 ret
 
 wrong_shift_left:
@@ -34,6 +35,7 @@ shift_left_saturate_with: create 9 30
 
 correct_shift_left_saturate:
 	draw 9 9 :shift_left_saturate_x :shift_left_saturate_y :star
+	present
 ret
 
 wrong_shift_left_saturate:
@@ -53,6 +55,7 @@ shift_right_with: create 9 60
 
 correct_shift_right:
 	draw 9 9 :shift_right_x :shift_right_y :star
+	present
 ret
 
 wrong_shift_right:
@@ -73,6 +76,7 @@ shift_right_saturate_with: create 9 30
 
 correct_shift_right_saturate:
 	draw 9 9 :shift_right_saturate_x :shift_right_saturate_y :star
+	present
 ret
 
 wrong_shift_right_saturate:
@@ -95,6 +99,7 @@ ret
 
 correct_and1:
 	draw 9 9 :and1_x :and1_y :star
+	present
 ret
 
 and1_x: create 4 24
@@ -115,6 +120,7 @@ ret
 
 correct_and2:
 	draw 9 9 :and2_x :and2_y :star
+	present
 ret
 
 and2_x: create 4 24
@@ -134,6 +140,7 @@ ret
 
 correct_or1:
 	draw 9 9 :or1_x :or1_y :star
+	present
 ret
 
 or1_x: create 4 34
@@ -154,6 +161,7 @@ ret
 
 correct_or2:
 	draw 9 9 :or2_x :or2_y :star
+	present
 ret
 
 or2_x: create 4 34
@@ -171,8 +179,9 @@ to_xor1: create 9 0
 wrong_xor1:
 ret
 
-cxorrect_xor1:
+correct_xor1:
 	draw 9 9 :xor1_x :xor1_y :star
+	present
 ret
 
 xor1_x: create 4 44
@@ -193,6 +202,7 @@ ret
 
 correct_xor2:
 	draw 9 9 :xor2_x :xor2_y :star
+	present
 ret
 
 xor2_x: create 4 44
@@ -212,6 +222,7 @@ ret
 
 correct_not1:
 	draw 9 9 :not1_x :not1_y :star
+	present
 ret
 
 not1_x: create 4 54
@@ -237,6 +248,7 @@ ret
 
 correct_rand:
 	draw 9 9 :rand_x :rand_y :star
+	present
 ret
 
 rand_x: create 4 54

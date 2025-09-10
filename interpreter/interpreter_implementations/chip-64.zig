@@ -70,6 +70,12 @@ pub const Interpreter = struct {
     pub fn execNextInstruction(self: *@This(), allocator: std.mem.Allocator) !?ExtraWork {
         var extra_work: ?ExtraWork = null;
 
+        if (self.prg_ptr >= self.mem.items.len) {
+            try self._error_handler.handleInterpreterError("Program pointer out of bounds of memory", 0, self.prg_ptr, error.OutOfBounds);
+            // We return error no matter what because there is no reasonable way to continue
+            return error.ErrorPrinted;
+        }
+
         switch (self.mem.items[self.prg_ptr]) {
             0x00 => {
                 self.prg_ptr -%= 1;
@@ -80,15 +86,13 @@ pub const Interpreter = struct {
             },
             0x02 => {
                 try self.draw_surface.clearSurface(.{ .r = 0, .g = 0, .b = 0, .a = 0 });
-                extra_work = .update_screen;
             },
             // Truncate has no effect on 64 bit archs but is required to run on 32 bit archs and is safe
             // since you can't have more memory than 2^32-1 memory on 32 bit archs
             0x03 => self.prg_ptr = @truncate(self.stack.pop() catch |err|
                 if (err == error.OutOfBounds) {
                     try self._error_handler.handleInterpreterError("Out of bounds of stack", self.mem.items[self.prg_ptr], self.prg_ptr, err);
-                    // We return error no matter what because continuing likely wouldn't lead to any more useful errors
-                    // and could easily lead to the execution of unwanted code (executing data as code for example)
+                    // We return error no matter what because there is no reasonable way to continue
                     return error.ErrorPrinted;
                 } else return err),
             0x04 => {
@@ -107,13 +111,13 @@ pub const Interpreter = struct {
                 extra_work = .resolution_changed;
             },
             0x10 => {
-                self.prg_ptr = self.read64BitNumber(self.prg_ptr + 1) -% 1;
+                self.prg_ptr = try self.read64BitNumber(self.prg_ptr + 1) -% 1;
             },
             0x11...0x16 => {
                 var is_true = false;
-                const bytes = self.readNumber(u16, self.prg_ptr + 9);
-                const var_1_ref = self.read64BitNumber(self.prg_ptr + 11);
-                const var_2_ref = self.read64BitNumber(self.prg_ptr + 19);
+                const bytes = try self.readNumber(u16, self.prg_ptr + 9);
+                const var_1_ref = try self.read64BitNumber(self.prg_ptr + 11);
+                const var_2_ref = try self.read64BitNumber(self.prg_ptr + 19);
 
                 var var_1 = BigInt{ .array = self.mem.items[var_1_ref .. var_1_ref + bytes] };
                 var_1.reverseByteOrder();
@@ -145,7 +149,7 @@ pub const Interpreter = struct {
                 }
 
                 if (is_true)
-                    self.prg_ptr = self.read64BitNumber(self.prg_ptr + 1) -% 1
+                    self.prg_ptr = try self.read64BitNumber(self.prg_ptr + 1) -% 1
                 else {
                     // 8 + 2 + 8 + 8
                     self.prg_ptr += 26;
@@ -153,18 +157,18 @@ pub const Interpreter = struct {
             },
             0x17 => {
                 try self.stack.push(allocator, self.prg_ptr + 8);
-                self.prg_ptr = self.read64BitNumber(self.prg_ptr + 1) -% 1;
+                self.prg_ptr = try self.read64BitNumber(self.prg_ptr + 1) -% 1;
             },
             0x20...0x21 => blk: {
                 defer self.prg_ptr += 16;
-                const ref_ptr = self.read64BitNumber(self.prg_ptr + 1);
+                const ref_ptr = try self.read64BitNumber(self.prg_ptr + 1);
                 try self.write64BitNumber(ref_ptr, self.mem.items.len);
                 // zig fmt: off
                 const bytes_to_alloc =
                     if (self.mem.items[self.prg_ptr] == 0x20)
-                        self.read64BitNumber(self.prg_ptr + 9)
+                        try self.read64BitNumber(self.prg_ptr + 9)
                     else if (self.mem.items[self.prg_ptr] == 0x21)
-                        self.read64BitNumber(self.read64BitNumber(self.prg_ptr + 9))
+                        try self.read64BitNumber(try self.read64BitNumber(self.prg_ptr + 9))
                     else unreachable;
                 // zig fmt: on
 
@@ -181,13 +185,13 @@ pub const Interpreter = struct {
             },
             0x22...0x23 => blk: {
                 defer self.prg_ptr += 16;
-                const free_start = self.read64BitNumber(self.read64BitNumber(self.prg_ptr + 1));
+                const free_start = try self.read64BitNumber(try self.read64BitNumber(self.prg_ptr + 1));
                 // zig fmt: off
                 const free_len =
                     if (self.mem.items[self.prg_ptr] == 0x22)
-                        self.read64BitNumber(self.prg_ptr + 9)
+                        try self.read64BitNumber(self.prg_ptr + 9)
                     else if (self.mem.items[self.prg_ptr] == 0x23)
-                        self.read64BitNumber(self.read64BitNumber(self.prg_ptr + 9))
+                        try self.read64BitNumber(try self.read64BitNumber(self.prg_ptr + 9))
                     else unreachable;
                 // zig fmt: on
 
@@ -247,9 +251,9 @@ pub const Interpreter = struct {
                 }
             },
             0x30...0x31 => {
-                const bytes = self.readNumber(u16, self.prg_ptr + 1);
+                const bytes = try self.readNumber(u16, self.prg_ptr + 1);
                 defer self.prg_ptr += 2;
-                const to_set_ref = self.read64BitNumber(self.prg_ptr + 3);
+                const to_set_ref = try self.read64BitNumber(self.prg_ptr + 3);
                 defer self.prg_ptr += 8;
                 if (to_set_ref >= self.mem.items.len) {
                     try self._error_handler.handleInterpreterError("Out of bounds of memory", self.mem.items[self.prg_ptr], self.prg_ptr, error.OutOfBounds);
@@ -259,15 +263,15 @@ pub const Interpreter = struct {
                     @memmove(self.mem.items[to_set_ref .. to_set_ref + bytes], self.mem.items[self.prg_ptr + 11 .. self.prg_ptr + 11 + bytes]);
                     self.prg_ptr += bytes;
                 } else {
-                    const set_to_ref = self.read64BitNumber(self.prg_ptr + 11);
+                    const set_to_ref = try self.read64BitNumber(self.prg_ptr + 11);
                     @memmove(self.mem.items[to_set_ref .. to_set_ref + bytes], self.mem.items[set_to_ref .. set_to_ref + bytes]);
                     self.prg_ptr += 8;
                 }
             },
             0x40...0x49 => {
-                const bytes = self.readNumber(u16, self.prg_ptr + 1);
+                const bytes = try self.readNumber(u16, self.prg_ptr + 1);
                 defer self.prg_ptr += 2;
-                const to_change_ref = self.read64BitNumber(self.prg_ptr + 3);
+                const to_change_ref = try self.read64BitNumber(self.prg_ptr + 3);
                 defer self.prg_ptr += 8;
                 if (to_change_ref >= self.mem.items.len) {
                     try self._error_handler.handleInterpreterError("Out of bounds of memory (first arg)", self.mem.items[self.prg_ptr], self.prg_ptr, error.OutOfBounds);
@@ -278,7 +282,7 @@ pub const Interpreter = struct {
                     if (self.mem.items[self.prg_ptr] % 2 == 0)
                         self.prg_ptr + 11
                     else
-                        self.read64BitNumber(self.prg_ptr + 11);
+                        try self.read64BitNumber(self.prg_ptr + 11);
                 defer self.prg_ptr += if (self.mem.items[self.prg_ptr] % 2 == 0) bytes else 8;
                 if (change_with_ref >= self.mem.items.len) {
                     try self._error_handler.handleInterpreterError("Out of bounds of memory (second arg)", self.mem.items[self.prg_ptr], self.prg_ptr, error.OutOfBounds);
@@ -303,9 +307,9 @@ pub const Interpreter = struct {
                 }
             },
             0x50...0x53 => {
-                const bytes = self.readNumber(u16, self.prg_ptr + 1);
+                const bytes = try self.readNumber(u16, self.prg_ptr + 1);
                 defer self.prg_ptr += 2;
-                const to_shift_ref = self.read64BitNumber(self.prg_ptr + 3);
+                const to_shift_ref = try self.read64BitNumber(self.prg_ptr + 3);
                 defer self.prg_ptr += 8;
                 if (to_shift_ref >= self.mem.items.len) {
                     try self._error_handler.handleInterpreterError("Out of bounds of memory", self.mem.items[self.prg_ptr], self.prg_ptr, error.OutOfBounds);
@@ -334,9 +338,9 @@ pub const Interpreter = struct {
                 }
             },
             0x54...0x59 => {
-                const bytes = self.readNumber(u16, self.prg_ptr + 1);
+                const bytes = try self.readNumber(u16, self.prg_ptr + 1);
                 defer self.prg_ptr += 2;
-                const to_change_ref = self.read64BitNumber(self.prg_ptr + 3);
+                const to_change_ref = try self.read64BitNumber(self.prg_ptr + 3);
                 defer self.prg_ptr += 8;
                 if (to_change_ref >= self.mem.items.len) {
                     try self._error_handler.handleInterpreterError("Out of bounds of memory (first arg)", self.mem.items[self.prg_ptr], self.prg_ptr, error.OutOfBounds);
@@ -347,7 +351,7 @@ pub const Interpreter = struct {
                     if (self.mem.items[self.prg_ptr] % 2 == 0)
                         self.prg_ptr + 11
                     else
-                        self.read64BitNumber(self.prg_ptr + 11);
+                        try self.read64BitNumber(self.prg_ptr + 11);
                 defer self.prg_ptr += if (self.mem.items[self.prg_ptr] % 2 == 0) bytes else 8;
                 if (change_with_ref >= self.mem.items.len) {
                     try self._error_handler.handleInterpreterError("Out of bounds of memory (second arg)", self.mem.items[self.prg_ptr], self.prg_ptr, error.OutOfBounds);
@@ -370,9 +374,9 @@ pub const Interpreter = struct {
                 }
             },
             0x5A => {
-                const bytes = self.readNumber(u16, self.prg_ptr + 1);
+                const bytes = try self.readNumber(u16, self.prg_ptr + 1);
                 defer self.prg_ptr += 2;
-                const to_not_ref = self.read64BitNumber(self.prg_ptr + 3);
+                const to_not_ref = try self.read64BitNumber(self.prg_ptr + 3);
                 defer self.prg_ptr += 8;
                 if (to_not_ref >= self.mem.items.len) {
                     try self._error_handler.handleInterpreterError("Out of bounds of memory", self.mem.items[self.prg_ptr], self.prg_ptr, error.OutOfBounds);
@@ -386,9 +390,9 @@ pub const Interpreter = struct {
                 to_not_int.bitwiseNotInPlace();
             },
             0x5B => {
-                const bytes = self.readNumber(u16, self.prg_ptr + 1);
+                const bytes = try self.readNumber(u16, self.prg_ptr + 1);
                 defer self.prg_ptr += 2;
-                const to_rand_ref = self.read64BitNumber(self.prg_ptr + 3);
+                const to_rand_ref = try self.read64BitNumber(self.prg_ptr + 3);
                 defer self.prg_ptr += 8;
                 if (to_rand_ref >= self.mem.items.len) {
                     try self._error_handler.handleInterpreterError("Out of bounds of memory", self.mem.items[self.prg_ptr], self.prg_ptr, error.OutOfBounds);
@@ -413,8 +417,8 @@ pub const Interpreter = struct {
                 }
             },
             0x60...0x63 => blk: {
-                const key = self.readNumber(u16, self.prg_ptr + 1);
-                const jump_address = self.readNumber(u64, self.prg_ptr + 3);
+                const key = try self.readNumber(u16, self.prg_ptr + 1);
+                const jump_address = try self.readNumber(u64, self.prg_ptr + 3);
 
                 if (key <= self.inputs.inputs.len) {
                     if (self.inputs.inputs[key].down) {
@@ -437,8 +441,8 @@ pub const Interpreter = struct {
                 self.prg_ptr +%= 10;
             },
             0x64...0x67 => blk: {
-                const key = self.readNumber(u16, self.prg_ptr + 1);
-                const jump_address = self.readNumber(u64, self.prg_ptr + 3);
+                const key = try self.readNumber(u16, self.prg_ptr + 1);
+                const jump_address = try self.readNumber(u64, self.prg_ptr + 3);
 
                 if (key < self.inputs.inputs.len) {
                     if (!self.inputs.inputs[key].down) {
@@ -461,15 +465,18 @@ pub const Interpreter = struct {
                 self.prg_ptr +%= 10;
             },
             0x70 => {
-                const sprite_w: usize = self.readNumber(u16, self.prg_ptr + 1);
+                extra_work = .update_screen;
+            },
+            0x71 => {
+                const sprite_w: usize = try self.readNumber(u16, self.prg_ptr + 1);
                 self.prg_ptr += 2;
-                const sprite_h: usize = self.readNumber(u16, self.prg_ptr + 1);
+                const sprite_h: usize = try self.readNumber(u16, self.prg_ptr + 1);
                 self.prg_ptr += 2;
-                const X: i32 = @bitCast(self.readNumber(u32, self.read64BitNumber(self.prg_ptr + 1)));
+                const X: i32 = @bitCast(try self.readNumber(u32, try self.read64BitNumber(self.prg_ptr + 1)));
                 self.prg_ptr += 8;
-                const Y: i32 = @bitCast(self.readNumber(u32, self.read64BitNumber(self.prg_ptr + 1)));
+                const Y: i32 = @bitCast(try self.readNumber(u32, try self.read64BitNumber(self.prg_ptr + 1)));
                 self.prg_ptr += 8;
-                const pixel_data_location = self.read64BitNumber(self.prg_ptr + 1);
+                const pixel_data_location = try self.read64BitNumber(self.prg_ptr + 1);
                 self.prg_ptr += 8;
 
                 if (pixel_data_location + (sprite_w * sprite_h) >= self.mem.items.len) {
@@ -502,11 +509,9 @@ pub const Interpreter = struct {
                 std.debug.assert(pixels.len == sprite.pitch * @as(i32, @bitCast(@as(u32, @intCast(sprite_h)))));
 
                 try self.draw_surface.blitSurface(sprite, X, Y);
-
-                extra_work = .update_screen;
             },
             0x80 => {
-                const time_ref: usize = self.read64BitNumber(self.prg_ptr + 1);
+                const time_ref: usize = try self.read64BitNumber(self.prg_ptr + 1);
                 self.prg_ptr += 8;
                 const time_bytes: [16]u8 = @bitCast(std.mem.nativeToBig(i128, std.time.nanoTimestamp()));
                 for (self.mem.items[time_ref .. time_ref + 16], time_bytes) |*byte, time_byte| {
@@ -528,10 +533,10 @@ pub const Interpreter = struct {
                     if (self.mem.items[self.prg_ptr] == 0x82)
                         self.prg_ptr + 1
                     else
-                        self.read64BitNumber(self.prg_ptr + 1);
+                        try self.read64BitNumber(self.prg_ptr + 1);
                 self.prg_ptr += 8;
 
-                const sleep_for: u64 = self.read64BitNumber(sleep_for_ref);
+                const sleep_for: u64 = try self.read64BitNumber(sleep_for_ref);
 
                 std.Thread.sleep(sleep_for);
             },
@@ -542,16 +547,32 @@ pub const Interpreter = struct {
         return extra_work;
     }
 
-    fn read64BitNumber(self: *@This(), at: u64) u64 {
+    fn read64BitNumber(self: *@This(), at: u64) !u64 {
         const i: usize = @intCast(at);
+
+        if (i + 7 >= self.mem.items.len) {
+            try self._error_handler.handleInterpreterError(
+                "Out of bounds of memory",
+                if (i + 7 < self.mem.items.len) self.mem.items[i + 7] else 0,
+                i + 7,
+                error.OutOfBounds,
+            );
+            // We return error no matter what because there is no reasonable way to continue
+            return error.ErrorPrinted;
+        }
         const arr = self.mem.items[i .. i + 8];
         const val = std.mem.bigToNative(u64, std.mem.bytesToValue(u64, arr));
         return val;
     }
 
     fn write64BitNumber(self: *@This(), at: u64, val: u64) !void {
-        if (at >= self.mem.items.len) {
-            try self._error_handler.handleInterpreterError("Out of bounds of memory", self.mem.items[self.prg_ptr], self.prg_ptr, error.OutOfBounds);
+        if (at + 7 >= self.mem.items.len) {
+            try self._error_handler.handleInterpreterError(
+                "Out of bounds of memory",
+                if (at + 7 < self.mem.items.len) self.mem.items[at + 7] else 0,
+                at + 7,
+                error.OutOfBounds,
+            );
         }
         self.mem.replaceRangeAssumeCapacity(
             at,
@@ -560,9 +581,20 @@ pub const Interpreter = struct {
         );
     }
 
-    fn readNumber(self: *@This(), T: type, at: u64) T {
+    fn readNumber(self: *@This(), T: type, at: u64) !T {
         const i: usize = @intCast(at);
-        const arr = self.mem.items[i .. i + (std.math.divCeil(u16, @typeInfo(T).int.bits, 8) catch unreachable)];
+        const byte_count = std.math.divCeil(u16, @typeInfo(T).int.bits, 8) catch unreachable;
+        if (i + byte_count >= self.mem.items.len) {
+            try self._error_handler.handleInterpreterError(
+                "Out of bounds of memory",
+                if (i + byte_count < self.mem.items.len) self.mem.items[i + byte_count] else 0,
+                i + byte_count,
+                error.OutOfBounds,
+            );
+            // We return error no matter what because there is no reasonable way to continue
+            return error.ErrorPrinted;
+        }
+        const arr = self.mem.items[i .. i + byte_count];
         const val = std.mem.bigToNative(T, std.mem.bytesToValue(T, arr));
         return val;
     }

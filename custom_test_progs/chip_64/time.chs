@@ -6,6 +6,7 @@ time :time
 # sleep for at least 3 seconds
 sleep :base_sleep
 draw 9 9 :x1 :y1 :star
+present
 
 time :sleep_for_u128
 sub 16 :sleep_for_u128 :time
@@ -14,6 +15,7 @@ sub 8 :base_sleep :sleep_for_u128
 # sleep for at least roughly 3 seconds
 sleep :base_sleep
 draw 9 9 :x2 :y2 :star
+present
 
 halt
 

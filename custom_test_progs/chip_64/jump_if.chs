@@ -16,6 +16,7 @@ wrong_jump_<: halt
 
 draw_jump_<:
 	draw 9 9 :draw_x_jump_< :draw_y_jump_< :star
+	present
 ret
 
 draw_x_jump_<: create 4 18
@@ -36,6 +37,7 @@ wrong_jump_<=: halt
 
 draw_jump_<=:
 	draw 9 9 :draw_x_jump_<= :draw_y_jump_<= :star
+	present
 ret
 
 draw_x_jump_<=: create 4 18
@@ -56,6 +58,7 @@ wrong_jump_>: halt
 
 draw_jump_>:
 	draw 9 9 :draw_x_jump_> :draw_y_jump_> :star
+	present
 ret
 
 draw_x_jump_>: create 4 28
@@ -76,6 +79,7 @@ wrong_jump_>=: halt
 
 draw_jump_>=:
 	draw 9 9 :draw_x_jump_>= :draw_y_jump_>= :star
+	present
 ret
 
 draw_x_jump_>=: create 4 28
@@ -96,6 +100,7 @@ wrong_jump_==: halt
 
 draw_jump_==:
 	draw 9 9 :draw_x_jump_== :draw_y_jump_== :star
+	present
 ret
 
 draw_x_jump_==: create 4 38
@@ -116,6 +121,7 @@ wrong_jump_!=: halt
 
 draw_jump_!=:
 	draw 9 9 :draw_x_jump_!= :draw_y_jump_!= :star
+	present
 ret
 
 draw_x_jump_!=: create 4 38

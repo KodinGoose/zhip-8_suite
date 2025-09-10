@@ -1,13 +1,30 @@
 # Tests whether set is working correctly and draws a start if yes
 
 resolution 64 32
-set 8 *0x19 0x19A
+set 8 *0x19 0x56
 call :halt
 set 8 *0x35 :set_to
 call :halt
 halt: halt
 
-set_to: create 8 0x1B8
+set_to: create 8 0x75
+
+x1: create 4 23
+y1: create 4 12
+
+x2: create 4 33
+y2: create 4 12
+
+draw:
+	draw 9 9 :x1 :y1 :star
+	present
+ret
+
+draw2:
+	draw 9 9 :x2 :y2 :star
+	present
+ret
+
 
 star:
 create 4 0x000000FF 0x000000FF 0x000000FF 0x000000FF 0xFFFF00FF 0x000000FF 0x000000FF 0x000000FF 0x000000FF
@@ -19,17 +36,3 @@ create 4 0x000000FF 0xFFFF00FF 0xFFFF00FF 0xE8E800FF 0xE8E800FF 0xE8E800FF 0xFFF
 create 4 0x000000FF 0x000000FF 0x000000FF 0xFFFF00FF 0xE8E800FF 0xFFFF00FF 0x000000FF 0x000000FF 0x000000FF
 create 4 0x000000FF 0x000000FF 0x000000FF 0xFFFF00FF 0xE8E800FF 0xFFFF00FF 0x000000FF 0x000000FF 0x000000FF
 create 4 0x000000FF 0x000000FF 0x000000FF 0x000000FF 0xFFFF00FF 0x000000FF 0x000000FF 0x000000FF 0x000000FF
-
-x1: create 4 23
-y1: create 4 12
-
-x2: create 4 33
-y2: create 4 12
-
-draw:
-	draw 9 9 :x1 :y1 :star
-ret
-
-draw2:
-	draw 9 9 :x2 :y2 :star
-ret

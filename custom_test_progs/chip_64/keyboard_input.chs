@@ -16,8 +16,9 @@ y_1: create 4 7
 
 draw_1:
 	draw 9 9 :x_1 :y_1 :star
-	# 0x77 == loop_2:
-	set 8 :loop_back_arg 0x77
+	present
+	# 0x78 == loop_2:
+	set 8 :loop_back_arg 0x78
 	jump :loop_back
 
 loop_2:
@@ -32,9 +33,10 @@ x_2: create 4 12
 y_2: create 4 17
 draw_2:
 	draw 9 9 :x_2 :y_2 :star
+	present
 	set 1 :done_2 1
-	# 0xf6 == loop_3:
-	set 8 :loop_back_arg 0xf6
+	# 0xf8 == loop_3:
+	set 8 :loop_back_arg 0xf8
 	jump :loop_back
 ret
 
@@ -47,8 +49,9 @@ y_3: create 4 7
 
 draw_3:
 	draw 9 9 :x_3 :y_3 :star
-	# 0x142 == loop_4:
-	set 8 :loop_back_arg 0x142
+	present
+	# 0x145 == loop_4:
+	set 8 :loop_back_arg 0x145
 	jump :loop_back
 
 loop_4:
@@ -59,8 +62,9 @@ x_4: create 4 22
 y_4: create 4 17
 draw_4:
 	draw 9 9 :x_4 :y_4 :star
-	# 0x1AC == loop_5_start:
-	set 8 :loop_back_arg 0x1AC
+	present
+	# 0x1B0 == loop_5_start:
+	set 8 :loop_back_arg 0x1B0
 	jump :loop_back
 ret
 
@@ -71,8 +75,8 @@ jump loop_back_released_arg: *0
 
 
 do_loop_5:
-# 0x1C8 == loop_5:
-set 8 :loop_back_released_arg 0x1C8
+# 0x1CC == loop_5:
+set 8 :loop_back_released_arg 0x1CC
 jump :loop_back_released
 loop_5:
 	key_released 44 :draw_5 jump
@@ -82,8 +86,9 @@ x_5: create 4 32
 y_5: create 4 7
 draw_5:
 	draw 9 9 :x_5 :y_5 :star
-	# 0x21D == loop_6:
-	set 8 :loop_back_released_arg 0x21D
+	present
+	# 0x222 == loop_6:
+	set 8 :loop_back_released_arg 0x222
 	jump :loop_back_released
 
 loop_6:
@@ -98,9 +103,10 @@ x_6: create 4 32
 y_6: create 4 17
 draw_6:
 	draw 9 9 :x_6 :y_6 :star
+	present
 	set 1 :done_6 1
-	# 0x29C == loop_7:
-	set 8 :loop_back_released_arg 0x29C
+	# 0x2A2 == loop_7:
+	set 8 :loop_back_released_arg 0x2A2
 	jump :loop_back_released
 ret
 
@@ -112,8 +118,9 @@ x_7: create 4 42
 y_7: create 4 7
 draw_7:
 	draw 9 9 :x_7 :y_7 :star
-	# 0x2E8 == loop_8:
-	set 8 :loop_back_released_arg 0x2E8
+	present
+	# 0x2EF == loop_8:
+	set 8 :loop_back_released_arg 0x2EF
 	jump :loop_back_released
 
 loop_8:
@@ -124,6 +131,7 @@ x_8: create 4 42
 y_8: create 4 17
 draw_8:
 	draw 9 9 :x_8 :y_8 :star
+	present
 ret
 
 

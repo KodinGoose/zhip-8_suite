@@ -354,8 +354,13 @@
   </tr>
 
   <tr>
+    <td>present</td>
+    <td class = "Op">70</td>
+    <td>Present the drawn bytes on to the screen<br> Must be called for the draw instructions to have an effect</td>
+  </tr>
+  <tr>
     <td>draw N N A/L A/L A/L</td>
-    <td class = "Op">70 ++ N ++ N ++ A ++ A ++ A</td>
+    <td class = "Op">71 ++ N ++ N ++ A ++ A ++ A</td>
     <td>
       Draw NxN sprite at position X, Y where X is the number at first A/L (32 bit signed) and Y is the number at second A/L (32 bit signed)<br>
       The pixels being drawn are at third A/L<br>

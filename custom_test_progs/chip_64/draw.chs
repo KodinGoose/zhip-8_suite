@@ -10,6 +10,7 @@ main:
 	draw 5 5 :x2 :y2 :pixels
 	draw 5 5 :x3 :y3 :pixels
 	draw 5 5 :x4 :y4 :pixels
+	present
 ret
 
 x1: create 4 30
