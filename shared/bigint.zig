@@ -570,7 +570,7 @@ pub const BigInt = struct {
     }
 
     /// Self.array.len and other.array.len must be the same
-    pub fn bitwisOrInPlace(self: *@This(), other: @This()) void {
+    pub fn bitwiseOrInPlace(self: *@This(), other: @This()) void {
         std.debug.assert(self.array.len == other.array.len);
         for (self.array, other.array) |*self_e, other_e| {
             self_e.* |= other_e;
@@ -1197,7 +1197,7 @@ test "bitwiseOrInPlace" {
     int2.array[2] = 0b1101_1011;
     int2.array[3] = 0b0011_0010;
 
-    int1.bitwisOrInPlace(int2);
+    int1.bitwiseOrInPlace(int2);
 
     try std.testing.expect(int1.array[0] == 0b1011_1010);
     try std.testing.expect(int1.array[1] == 0b1101_0111);
