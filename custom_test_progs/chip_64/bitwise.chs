@@ -219,18 +219,23 @@ not1_y: create 4 7
 
 
 rand:
-	rand 9 :to_rand
-	and 9 :to_rand 1
-	add 9 :rand_call :to_rand
+	rand 9 :to_rand_1
+	rand 9 :to_rand_2
+	# Two random values right after each other cannot be the same since	the rng is only pseudo random
+	# Even if the implementation of the rng allows two equal values in sequence the probability is so small that I don't care
+	jump :rand_add 9 if :to_rand_1 != :to_rand_2
+	jump :rand_call
+	rand_add: add 9 :rand_call 1
 	rand_call: call :wrong_rand
 halt
 
-to_rand: reserve 9
+to_rand_1: create 9 0
+to_rand_2: create 9 0
 
 wrong_rand:
 ret
 
-cnotrect_rand:
+correct_rand:
 	draw 9 9 :rand_x :rand_y :star
 ret
 

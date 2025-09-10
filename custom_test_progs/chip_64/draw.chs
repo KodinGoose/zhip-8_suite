@@ -1,6 +1,7 @@
 window lock
-resolution 64 32
+resolution 1280 720
 window match
+resolution 64 32
 call :main
 halt
 
