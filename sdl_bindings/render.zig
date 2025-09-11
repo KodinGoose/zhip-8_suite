@@ -288,6 +288,7 @@ pub const Surface = extern struct {
         if (!C.SDL_FillSurfaceRect(self.toSDL(), rectangle.toSDL(), stupid_color)) return error.CouldntBlitRect;
     }
 
+    /// Creates a copy of the surface
     pub fn scaleSurface(self: *Surface, w: i32, h: i32, scale_mode: ScaleMode) !*Surface {
         const ret = C.SDL_ScaleSurface(self.toSDL(), w, h, scale_mode.toSDL());
         if (ret == null) return error.CouldntScaleSurface;

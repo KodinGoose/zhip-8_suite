@@ -133,10 +133,12 @@ pub fn main() !void {
 
             try playfield.draw(window_surface);
 
-            const inter_surf = interpreter.getDrawSurface();
-            var tmp_surf = try inter_surf.scaleSurface(inter_surf.w * pixel_size, inter_surf.h * pixel_size, .nearest);
-            defer tmp_surf.deinit();
-            try window_surface.blitSurface(tmp_surf, playfield.rect.x + 1, playfield.rect.y + 1);
+            if (pixel_size > 0) {
+                const inter_surf = interpreter.getDrawSurface();
+                var tmp_surf = try inter_surf.scaleSurface(inter_surf.w * pixel_size, inter_surf.h * pixel_size, .nearest);
+                defer tmp_surf.deinit();
+                try window_surface.blitSurface(tmp_surf, playfield.rect.x + 1, playfield.rect.y + 1);
+            }
 
             try window.updateSurface();
             update_screen = false;
