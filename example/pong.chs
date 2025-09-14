@@ -4,8 +4,10 @@ resolution 1280 720
 
 main_loop:
 
+	call :player_1_move
+	call :player_2_move
 	
-	jump :skip_left_move 4 if :ball_moving_right == :true
+	jump :skip_left_move 1 if :ball_moving_right == :true
 	add 4 :ball_x :ball_w
 	jump :no_left_out 4 if :ball_x >= :ball_x_speed
 	sub 4 :ball_x :ball_w
@@ -15,7 +17,7 @@ main_loop:
 	sub 4 :ball_x :ball_x_speed
 	skip_left_move:
 
-	jump :skip_right_move 4 if :ball_moving_right == :false
+	jump :skip_right_move 1 if :ball_moving_right == :false
 	add 4 :ball_x :ball_x_speed
 	jump :skip_right_move 4 if :ball_x <= :screen_edge_right
 	call :reset
@@ -54,6 +56,42 @@ main_loop:
 
 jump :main_loop
 
+player_1_move:
+	key_released 26 :player_1_move_no_w_input jump
+		sub 4 :player_1_y 8
+		jump :player_1_move_w_no_top_collide 4 if :player_1_y < :screen_edge_bottom
+		set 4 :player_1_y 0
+		player_1_move_w_no_top_collide:
+	player_1_move_no_w_input:
+
+	key_released 22 :player_1_move_no_s_input jump
+		add 4 :player_1_y 8
+		add 4 :player_1_y :player_1_h
+		jump :player_1_move_s_no_bottom_collide 4 if :player_1_y < :screen_edge_bottom
+		set 4 :player_1_y :screen_edge_bottom
+		player_1_move_s_no_bottom_collide:
+		sub 4 :player_1_y :player_1_h
+	player_1_move_no_s_input:
+ret
+
+player_2_move:
+	key_released 82 :player_2_move_no_up_input jump
+		sub 4 :player_2_y 8
+		jump :player_2_move_up_no_top_collide 4 if :player_2_y < :screen_edge_bottom
+		set 4 :player_2_y 0
+		player_2_move_up_no_top_collide:
+	player_2_move_no_up_input:
+
+	key_released 81 :player_2_move_no_down_input jump
+		add 4 :player_2_y 8
+		add 4 :player_2_y :player_2_h
+		jump :player_2_move_down_no_bottom_collide 4 if :player_2_y < :screen_edge_bottom
+		set 4 :player_2_y :screen_edge_bottom
+		player_2_move_down_no_bottom_collide:
+		sub 4 :player_2_y :player_2_h
+	player_2_move_no_down_input:
+ret
+
 # Reused by bottom_ball_collision
 tmp_y_speed: reserve 4
 top_ball_collision:
@@ -79,39 +117,93 @@ bottom_ball_collision:
 	set 1 :ball_moving_down 0
 ret
 
-player_1_ball_tmp: reserve 4
+rect_1_x: reserve 4
+rect_1_y: reserve 4
+rect_1_w: reserve 4
+rect_1_h: reserve 4
+rect_2_x: reserve 4
+rect_2_y: reserve 4
+rect_2_w: reserve 4
+rect_2_h: reserve 4
+rect_collide_tmp_1: reserve 4
+rects_collided: reserve 1
+rect_collide:
+	set 4 :rect_collide_tmp_1 :rect_1_x
+	add 4 :rect_collide_tmp_1 :rect_1_w
+	jump :no_rect_collision 4 if :rect_2_x >= :rect_collide_tmp_1
+
+	set 4 :rect_collide_tmp_1 :rect_2_x
+	add 4 :rect_collide_tmp_1 :rect_2_w
+	jump :no_rect_collision 4 if :rect_1_x >= :rect_collide_tmp_1
+
+	set 4 :rect_collide_tmp_1 :rect_1_y
+	add 4 :rect_collide_tmp_1 :rect_1_h
+	jump :no_rect_collision 4 if :rect_2_y >= :rect_collide_tmp_1
+
+	set 4 :rect_collide_tmp_1 :rect_2_y
+	add 4 :rect_collide_tmp_1 :rect_2_h
+	jump :no_rect_collision 4 if :rect_1_y >= :rect_collide_tmp_1
+
+	rect_collision:
+	set 1 :rects_collided :true
+ret
+	no_rect_collision:
+	set 1 :rects_collided :false
+ret
+
 player_1_ball_collision:
-	set 4 :player_1_ball_tmp :ball_x
-	sub 4 :player_1_ball_tmp :player_1_x
-	jump :player_1_ball_no_collision 4 if :player_1_ball_tmp >= :player_1_w
+
+	set 4 :rect_1_x :player_1_x
+	set 4 :rect_1_y :player_1_y
+	set 4 :rect_1_w :player_1_w
+	set 4 :rect_1_h :player_1_h
+	set 4 :rect_2_x :ball_x
+	set 4 :rect_2_y :ball_y
+	set 4 :rect_2_w :ball_w
+	set 4 :rect_2_h :ball_h
+	call :rect_collide
+
+	jump :player_1_ball_collided 1 if :rects_collided == :true
+ret
+	player_1_ball_tmp: reserve 4
+	player_1_ball_collided:
 		set 1 :ball_moving_right 1
+		set 4 :player_1_ball_tmp :player_1_x
+		add 4 :player_1_ball_tmp :player_1_w
+		sub 4 :player_1_ball_tmp :ball_x
 		add 4 :ball_x :player_1_ball_tmp
 		add 4 :ball_x :player_1_ball_tmp
-	player_1_ball_no_collision:
 ret
 
-player_2_ball_tmp: reserve 4
 player_2_ball_collision:
-	add 4 :player_2_x :player_2_w
-	set 4 :player_2_ball_tmp :player_2_x
-	sub 4 :player_2_x :player_2_w
 
-	add 4 :ball_x :ball_w
-	sub 4 :player_2_ball_tmp :ball_x
-	sub 4 :ball_x :ball_w
+	set 4 :rect_1_x :player_2_x
+	set 4 :rect_1_y :player_2_y
+	set 4 :rect_1_w :player_2_w
+	set 4 :rect_1_h :player_2_h
+	set 4 :rect_2_x :ball_x
+	set 4 :rect_2_y :ball_y
+	set 4 :rect_2_w :ball_w
+	set 4 :rect_2_h :ball_h
+	call :rect_collide
 
-	jump :player_2_ball_no_collision 4 if :player_2_ball_tmp >= :player_1_w
+	jump :player_2_ball_collided 1 if :rects_collided == :true
+ret
+	player_2_ball_tmp: reserve 4
+	player_2_ball_collided:
 		set 1 :ball_moving_right 0
+		set 4 :player_2_ball_tmp :ball_x
+		add 4 :player_2_ball_tmp :ball_w
+		sub 4 :player_2_ball_tmp :player_2_x
 		sub 4 :ball_x :player_2_ball_tmp
 		sub 4 :ball_x :player_2_ball_tmp
-	player_2_ball_no_collision:
 ret
 
-# Doesn't reset ball_moving_right making the loser serve
+# Doesn't reset ball_moving_right thus making the loser serve
 reset:
 	set 4 :ball_x 635
 	set 4 :ball_y 355
-	set 4 :ball_x_speed 4
+	set 4 :ball_x_speed 16
 	set 4 :ball_y_speed 0
 	set 4 :player_1_x 20
 	set 4 :player_1_y 310
@@ -122,8 +214,6 @@ ret
 true: create 1 1
 false: create 1 0
 
-screen_edge_left: create 4 0
-screen_edge_top: create 4 0
 screen_edge_right: create 4 1279
 screen_edge_bottom: create 4 719
 
