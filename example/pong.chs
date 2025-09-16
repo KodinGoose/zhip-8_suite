@@ -1,8 +1,15 @@
 # This is a chip-64 program
 
+auto_sleep off
 resolution 1280 720
 
+jump :main_loop
+
+frame_start: reserve 8
+frame_start_u64: reserve 8
+frame_end: reserve 16
 main_loop:
+	time :frame_start
 
 	call :player_1_move
 	call :player_2_move
@@ -54,6 +61,13 @@ main_loop:
 	draw 20 100 :player_2_x :player_2_y :player_2_sprite
 	present
 
+	time :frame_end
+	sub 16 :frame_end :frame_start
+	set 16 :frame_start 35000000
+	jump :no_sleep 16 if :frame_start <= :frame_end
+	sub 16 :frame_start :frame_end
+	sleep :frame_start_u64
+	no_sleep:
 jump :main_loop
 
 player_1_move:
@@ -151,6 +165,8 @@ ret
 	set 1 :rects_collided :false
 ret
 
+player_1_ball_tmp_1: reserve 4
+player_1_ball_tmp_2: reserve 4
 player_1_ball_collision:
 
 	set 4 :rect_1_x :player_1_x
@@ -165,16 +181,50 @@ player_1_ball_collision:
 
 	jump :player_1_ball_collided 1 if :rects_collided == :true
 ret
-	player_1_ball_tmp: reserve 4
 	player_1_ball_collided:
 		set 1 :ball_moving_right 1
-		set 4 :player_1_ball_tmp :player_1_x
-		add 4 :player_1_ball_tmp :player_1_w
-		sub 4 :player_1_ball_tmp :ball_x
-		add 4 :ball_x :player_1_ball_tmp
-		add 4 :ball_x :player_1_ball_tmp
+		set 4 :player_1_ball_tmp_1 :player_1_x
+		add 4 :player_1_ball_tmp_1 :player_1_w
+		sub 4 :player_1_ball_tmp_1 :ball_x
+		add 4 :ball_x :player_1_ball_tmp_1
+		add 4 :ball_x :player_1_ball_tmp_1
+
+		set 4 :player_1_ball_tmp_1 :player_1_h
+		div 4 :player_1_ball_tmp_1 2
+		add 4 :player_1_ball_tmp_1 :player_1_y
+		set 4 :player_1_ball_tmp_2 :ball_h
+		div 4 :player_1_ball_tmp_2 2
+		add 4 :player_1_ball_tmp_2 :ball_y
+		add 4 :player_1_ball_tmp_1 5
+		jump :player_1_ball_lower 4 if :player_1_ball_tmp_1 < :player_1_ball_tmp_2
+		sub 4 :player_1_ball_tmp_1 10
+		jump :player_1_ball_higher 4 if :player_1_ball_tmp_1 > :player_1_ball_tmp_2
+		set 4 :ball_y_speed 0
+ret
+		player_1_ball_higher:
+			set 4 :player_1_ball_tmp_1 :player_1_h
+			div 4 :player_1_ball_tmp_1 2
+			add 4 :player_1_ball_tmp_1 :player_1_y
+			set 4 :player_1_ball_tmp_2 :ball_y
+			add 4 :player_1_ball_tmp_2 :ball_h
+			sub 4 :player_1_ball_tmp_1 :player_1_ball_tmp_2
+			set 4 :ball_y_speed :player_1_ball_tmp_1
+			div 4 :ball_y_speed 3
+			set 1 :ball_moving_down :false
+ret
+		player_1_ball_lower:
+			set 4 :player_1_ball_tmp_1 :ball_y
+			sub 4 :player_1_ball_tmp_1 :player_1_y
+			set 4 :player_1_ball_tmp_2 :player_1_h
+			div 4 :player_1_ball_tmp_2 2
+			sub 4 :player_1_ball_tmp_1 :player_1_ball_tmp_2
+			set 4 :ball_y_speed :player_1_ball_tmp_1
+			div 4 :ball_y_speed 3
+			set 1 :ball_moving_down :true
 ret
 
+player_2_ball_tmp_1: reserve 4
+player_2_ball_tmp_2: reserve 4
 player_2_ball_collision:
 
 	set 4 :rect_1_x :player_2_x
@@ -189,14 +239,46 @@ player_2_ball_collision:
 
 	jump :player_2_ball_collided 1 if :rects_collided == :true
 ret
-	player_2_ball_tmp: reserve 4
 	player_2_ball_collided:
 		set 1 :ball_moving_right 0
-		set 4 :player_2_ball_tmp :ball_x
-		add 4 :player_2_ball_tmp :ball_w
-		sub 4 :player_2_ball_tmp :player_2_x
-		sub 4 :ball_x :player_2_ball_tmp
-		sub 4 :ball_x :player_2_ball_tmp
+		set 4 :player_2_ball_tmp_1 :ball_x
+		add 4 :player_2_ball_tmp_1 :ball_w
+		sub 4 :player_2_ball_tmp_1 :player_2_x
+		sub 4 :ball_x :player_2_ball_tmp_1
+		sub 4 :ball_x :player_2_ball_tmp_1
+
+		set 4 :player_2_ball_tmp_1 :player_2_h
+		div 4 :player_2_ball_tmp_1 2
+		add 4 :player_2_ball_tmp_1 :player_2_y
+		set 4 :player_2_ball_tmp_2 :ball_h
+		div 4 :player_2_ball_tmp_2 2
+		add 4 :player_2_ball_tmp_2 :ball_y
+		add 4 :player_2_ball_tmp_1 5
+		jump :player_2_ball_lower 4 if :player_2_ball_tmp_1 < :player_2_ball_tmp_2
+		sub 4 :player_2_ball_tmp_1 10
+		jump :player_2_ball_higher 4 if :player_2_ball_tmp_1 > :player_2_ball_tmp_2
+		set 4 :ball_y_speed 0
+ret
+		player_2_ball_higher:
+			set 4 :player_2_ball_tmp_1 :player_2_h
+			div 4 :player_2_ball_tmp_1 2
+			add 4 :player_2_ball_tmp_1 :player_2_y
+			set 4 :player_2_ball_tmp_2 :ball_y
+			add 4 :player_2_ball_tmp_2 :ball_h
+			sub 4 :player_2_ball_tmp_1 :player_2_ball_tmp_2
+			set 4 :ball_y_speed :player_2_ball_tmp_1
+			div 4 :ball_y_speed 3
+			set 1 :ball_moving_down :false
+ret
+		player_2_ball_lower:
+			set 4 :player_2_ball_tmp_1 :ball_y
+			sub 4 :player_2_ball_tmp_1 :player_2_y
+			set 4 :player_2_ball_tmp_2 :player_2_h
+			div 4 :player_2_ball_tmp_2 2
+			sub 4 :player_2_ball_tmp_1 :player_2_ball_tmp_2
+			set 4 :ball_y_speed :player_2_ball_tmp_1
+			div 4 :ball_y_speed 3
+			set 1 :ball_moving_down :true
 ret
 
 # Doesn't reset ball_moving_right thus making the loser serve
