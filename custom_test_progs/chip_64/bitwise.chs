@@ -6,6 +6,7 @@ jump :shift_left
 
 shift_left:
 	shift_left 9 :to_shift_left 1
+	add 9 :to_shift_left 1
 	sub 9 :shift_left_call :to_shift_left
 	shift_left_call: call :wrong_shift_left
 jump :shift_left_saturate
@@ -31,7 +32,7 @@ shift_left_saturate:
 jump :shift_right
 
 # Whether the values of the operation are correct are checked by a different test
-shift_left_saturate_with: create 9 30
+shift_left_saturate_with: create 9 31
 
 correct_shift_left_saturate:
 	draw 9 9 :shift_left_saturate_x :shift_left_saturate_y :star
@@ -51,7 +52,7 @@ shift_right:
 	shift_right_call: call :wrong_shift_right
 jump :shift_right_saturate
 
-shift_right_with: create 9 60
+shift_right_with: create 9 62
 
 correct_shift_right:
 	draw 9 9 :shift_right_x :shift_right_y :star
@@ -72,7 +73,7 @@ shift_right_saturate:
 jump :and1
 
 # Whether the values of the operation are correct are checked by a different test
-shift_right_saturate_with: create 9 30
+shift_right_saturate_with: create 9 31
 
 correct_shift_right_saturate:
 	draw 9 9 :shift_right_saturate_x :shift_right_saturate_y :star

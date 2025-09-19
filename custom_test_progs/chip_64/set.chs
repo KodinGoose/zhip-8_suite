@@ -1,9 +1,9 @@
 # Tests whether set is working correctly and draws a start if yes
 
 resolution 64 32
-set 8 *0x19 0x56
+set 8 :0x19 0x56
 call :halt
-set 8 *0x35 :set_to
+set 8 :0x35 :set_to
 call :halt
 halt: halt
 
