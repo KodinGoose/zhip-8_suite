@@ -59,7 +59,7 @@ pub fn main() !void {
 
     if (interpreter._tag != .chip_64) pixel_size = 10;
 
-    window = try sdl.render.Window.init("interpreter", interpreter.getDrawSurface().w, interpreter.getDrawSurface().h, .{ .fullsceen = args.fullscreen, .resizable = true });
+    window = try sdl.render.Window.init("interpreter", interpreter.getWidth() * pixel_size, interpreter.getHeight() * pixel_size, .{ .fullsceen = args.fullscreen, .resizable = true });
     defer window.deinit();
     window.sync() catch |err| std.log.warn("{s}", .{@errorName(err)});
 
@@ -111,17 +111,18 @@ pub fn main() !void {
         }
 
         if (update_window) {
-            const inter_surf = interpreter.getDrawSurface();
+            const draw_w = interpreter.getWidth();
+            const draw_h = interpreter.getHeight();
             const win_size = try window.getWinSize();
-            if (@divTrunc(win_size.width, inter_surf.w) < @divTrunc(win_size.height, inter_surf.h)) {
-                pixel_size = @divTrunc(win_size.width, inter_surf.w);
+            if (@divTrunc(win_size.width, draw_w) < @divTrunc(win_size.height, draw_h)) {
+                pixel_size = @divTrunc(win_size.width, draw_w);
             } else {
-                pixel_size = @divTrunc(win_size.height, inter_surf.h);
+                pixel_size = @divTrunc(win_size.height, draw_h);
             }
-            playfield.rect.x = @divTrunc(win_size.width - inter_surf.w * pixel_size, 2) - 1;
-            playfield.rect.y = @divTrunc(win_size.height - inter_surf.h * pixel_size, 2) - 1;
-            playfield.rect.w = (inter_surf.w * pixel_size) + 2;
-            playfield.rect.h = (inter_surf.h * pixel_size) + 2;
+            playfield.rect.x = @divTrunc(win_size.width - draw_w * pixel_size, 2) - 1;
+            playfield.rect.y = @divTrunc(win_size.height - draw_h * pixel_size, 2) - 1;
+            playfield.rect.w = (draw_w * pixel_size) + 2;
+            playfield.rect.h = (draw_h * pixel_size) + 2;
             update_window = false;
             update_screen = true;
         }
@@ -134,10 +135,29 @@ pub fn main() !void {
             try playfield.draw(window_surface);
 
             if (pixel_size > 0) {
-                const inter_surf = interpreter.getDrawSurface();
-                var tmp_surf = try inter_surf.scaleSurface(inter_surf.w * pixel_size, inter_surf.h * pixel_size, .nearest);
-                defer tmp_surf.deinit();
-                try window_surface.blitSurface(tmp_surf, playfield.rect.x + 1, playfield.rect.y + 1);
+                if (interpreter._tag == .chip_64) {
+                    const inter_surf = interpreter.getDrawSurface();
+                    var tmp_surf = try inter_surf.scaleSurface(inter_surf.w * pixel_size, inter_surf.h * pixel_size, .nearest);
+                    defer tmp_surf.deinit();
+                    try window_surface.blitSurface(tmp_surf, playfield.rect.x + 1, playfield.rect.y + 1);
+                } else {
+                    // TODO: Replace with similar solution as used in chip-64
+                    const draw_w: u32 = @intCast(interpreter.getWidth());
+                    const draw_h: u32 = @intCast(interpreter.getHeight());
+                    const buffer = interpreter.getDrawBuffer();
+                    for (0..draw_h) |y| {
+                        for (0..draw_w) |x| {
+                            if (buffer[x + y * draw_w] != 1) continue;
+                            var tmp_rect = sdl.rect.Irect{
+                                .x = (@as(i32, @intCast(x)) * pixel_size) + playfield.rect.x,
+                                .y = (@as(i32, @intCast(y)) * pixel_size) + playfield.rect.y,
+                                .w = pixel_size,
+                                .h = pixel_size,
+                            };
+                            try window_surface.blitRect(&tmp_rect, .{ .r = 255, .g = 255, .b = 255, .a = 255 });
+                        }
+                    }
+                }
             }
 
             try window.updateSurface();

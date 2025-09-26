@@ -1,7 +1,8 @@
 const std = @import("std");
-const Base = @import("interpreter_base.zig");
+const sdl_C = @import("sdl_bindings").C;
+const Base = @import("base.zig");
 
-pub const Chip8Interpreter = struct {
+pub const Interpreter = struct {
     base: Base.InterpreterBase,
 
     pub fn execNextInstruction(self: *@This(), allocator: std.mem.Allocator) !?Base.ExtraWork {
@@ -14,33 +15,19 @@ pub const Chip8Interpreter = struct {
             0x0 => {
                 switch (@as(u8, @bitCast(next_byte))) {
                     0xE0 => {
-                        for (0..self.base.display_buffer.len) |i| {
-                            self.base.display_buffer[i] = 0;
+                        for (0..self.base.draw_buf.len) |i| {
+                            self.base.draw_buf[i] = 0;
                             ret_work = .update_screen;
                         }
                     },
                     0xEE => blk: {
                         self.base.prg_ptr = self.base.stack.pop() catch |err| {
-                            try self.base.error_handler.handleInterpreterError(
-                                allocator,
-                                "Tried to return from top level function",
-                                @bitCast(cur_byte),
-                                @bitCast(next_byte),
-                                self.base.prg_ptr,
-                                err,
-                            );
+                            try self.base.error_handler.handleInterpreterError("Tried to return from top level function", @bitCast(cur_byte), self.base.prg_ptr, err);
                             break :blk;
                         };
                     },
                     else => {
-                        try self.base.error_handler.handleInterpreterError(
-                            allocator,
-                            "Unknown instruction",
-                            @bitCast(cur_byte),
-                            @bitCast(next_byte),
-                            self.base.prg_ptr,
-                            error.UnknownInstruction,
-                        );
+                        try self.base.error_handler.handleInterpreterError("Unknown instruction", @bitCast(cur_byte), self.base.prg_ptr, error.UnknownInstruction);
                     },
                 }
             },
@@ -109,14 +96,7 @@ pub const Chip8Interpreter = struct {
                         self.base.registers[0xF] = shifted_out_bit;
                     },
                     else => {
-                        try self.base.error_handler.handleInterpreterError(
-                            allocator,
-                            "Unknown instruction",
-                            @bitCast(cur_byte),
-                            @bitCast(next_byte),
-                            self.base.prg_ptr,
-                            error.UnknownInstruction,
-                        );
+                        try self.base.error_handler.handleInterpreterError("Unknown instruction", @bitCast(cur_byte), self.base.prg_ptr, error.UnknownInstruction);
                     },
                 }
             },
@@ -133,8 +113,8 @@ pub const Chip8Interpreter = struct {
                 self.base.registers[cur_byte.l] = @as(u8, @intCast(self.base.rng.next() % 256)) | @as(u8, @bitCast(next_byte));
             },
             0xD => {
-                const x: i32 = @intCast(self.base.registers[cur_byte.l] % @as(u32, @bitCast(self.base.display_w)));
-                const y: i32 = @intCast(self.base.registers[next_byte.u] % @as(u32, @bitCast(self.base.display_h)));
+                const x: i32 = @intCast(self.base.registers[cur_byte.l] % @as(u32, @bitCast(self.base.draw_w)));
+                const y: i32 = @intCast(self.base.registers[next_byte.u] % @as(u32, @bitCast(self.base.draw_h)));
                 const N: i32 = next_byte.l;
                 var wrote_x: i32 = 0;
                 var wrote_y: i32 = 0;
@@ -143,13 +123,13 @@ pub const Chip8Interpreter = struct {
                 // Note: According to http://devernay.free.fr/hacks/chip8/C8TECH10.HTM we should be checking for collision
                 self.base.registers[0xF] = 0;
                 while (wrote_y < N) {
-                    const index = x + wrote_x + (wrote_y + y) * self.base.display_w;
+                    const index = x + wrote_x + (wrote_y + y) * self.base.draw_w;
                     blk: {
-                        if (y + wrote_y >= self.base.display_h or x + wrote_x >= self.base.display_w) break :blk;
-                        const pixel_before = self.base.display_buffer[@as(u32, @bitCast(index))];
+                        if (y + wrote_y >= self.base.draw_h or x + wrote_x >= self.base.draw_w) break :blk;
+                        const pixel_before = self.base.draw_buf[@as(u32, @bitCast(index))];
                         const val: u8 = @bitCast(self.base.mem[address]);
-                        self.base.display_buffer[@as(u32, @bitCast(index))] ^= @intCast((val >> @as(u3, @intCast(7 - wrote_x))) & 0b1);
-                        if (pixel_before == 1 and self.base.display_buffer[@as(u32, @bitCast(index))] == 0) {
+                        self.base.draw_buf[@as(u32, @bitCast(index))] ^= @intCast((val >> @as(u3, @intCast(7 - wrote_x))) & 0b1);
+                        if (pixel_before == 1 and self.base.draw_buf[@as(u32, @bitCast(index))] == 0) {
                             self.base.registers[0xF] = 1;
                         }
                     }
@@ -167,22 +147,15 @@ pub const Chip8Interpreter = struct {
             0xE => {
                 switch (@as(u8, @bitCast(next_byte))) {
                     0x9E => blk: {
-                        if (self.base.registers[cur_byte.l] > 0xF) break :blk;
-                        if (self.base.user_inputs.inputs[self.base.registers[cur_byte.l]].down) self.base.prg_ptr += 2;
+                        const scancode = Base.convertInputsToScancode(self.base.registers[cur_byte.l]) catch break :blk;
+                        if (self.base.user_inputs.inputs[@intCast(scancode)].down) self.base.prg_ptr += 2;
                     },
                     0xA1 => blk: {
-                        if (self.base.registers[cur_byte.l] > 0xF) break :blk;
-                        if (!self.base.user_inputs.inputs[self.base.registers[cur_byte.l]].down) self.base.prg_ptr += 2;
+                        const scancode = Base.convertInputsToScancode(self.base.registers[cur_byte.l]) catch break :blk;
+                        if (!self.base.user_inputs.inputs[@intCast(scancode)].down) self.base.prg_ptr += 2;
                     },
                     else => {
-                        try self.base.error_handler.handleInterpreterError(
-                            allocator,
-                            "Unknown instruction",
-                            @bitCast(cur_byte),
-                            @bitCast(next_byte),
-                            self.base.prg_ptr,
-                            error.UnknownInstruction,
-                        );
+                        try self.base.error_handler.handleInterpreterError("Unknown instruction", @bitCast(cur_byte), self.base.prg_ptr, error.UnknownInstruction);
                     },
                 }
             },
@@ -192,10 +165,13 @@ pub const Chip8Interpreter = struct {
                     0x0A => {
                         // Effectively pause the interpreter
                         self.base.prg_ptr -= 2;
-                        for (self.base.user_inputs.inputs, 0..) |input, value| {
+                        for (self.base.user_inputs.inputs, 0..) |input, scancode| {
                             if (input.released) {
+                                const value = Base.convertScancodeToInputs(@intCast(@as(i64, @intCast(scancode)))) catch |err| {
+                                    if (err == error.UnableToConvert) continue else unreachable;
+                                };
                                 self.base.registers[cur_byte.l] = @intCast(value);
-                                // effectively unpause the interpreter
+                                // Effectively unpause the interpreter
                                 self.base.prg_ptr += 2;
                                 break;
                             }
@@ -233,14 +209,7 @@ pub const Chip8Interpreter = struct {
                         }
                     },
                     else => {
-                        try self.base.error_handler.handleInterpreterError(
-                            allocator,
-                            "Unknown instruction",
-                            @bitCast(cur_byte),
-                            @bitCast(next_byte),
-                            self.base.prg_ptr,
-                            error.UnknownInstruction,
-                        );
+                        try self.base.error_handler.handleInterpreterError("Unknown instruction", @bitCast(cur_byte), self.base.prg_ptr, error.UnknownInstruction);
                     },
                 }
             },

@@ -27,7 +27,7 @@ pub const Interpreter = struct {
     allocated_memory_start: u64,
     alloc_table: std.ArrayList(AllocatedMem) = .empty,
     draw_surface: *sdl.render.Surface,
-    inputs: Input,
+    user_inputs: Input,
     rand_gen: std.Random.DefaultPrng,
     sound_timer: u8 = 0,
     hertz_counter: usize = 0,
@@ -43,7 +43,7 @@ pub const Interpreter = struct {
             .mem = .fromOwnedSlice(try allocator.dupe(u8, mem)),
             .allocated_memory_start = mem.len,
             .draw_surface = try .init(draw_start_start_w, draw_surface_start_h, .rgba8888),
-            .inputs = try .init(allocator, input_len),
+            .user_inputs = try .init(allocator, input_len),
             .rand_gen = .init(@truncate(@as(u128, @bitCast(std.time.nanoTimestamp())))),
             ._error_handler = .{
                 ._writer = err_writer,
@@ -62,9 +62,8 @@ pub const Interpreter = struct {
         self.mem.deinit(allocator);
         self.alloc_table.deinit(allocator);
         self.draw_surface.deinit();
-        self.inputs.deinit(allocator);
+        self.user_inputs.deinit(allocator);
         self._error_handler.writeErrorCount();
-        self._error_handler._writer.flush() catch {};
     }
 
     pub fn execNextInstruction(self: *@This(), allocator: std.mem.Allocator) !?ExtraWork {
@@ -420,8 +419,8 @@ pub const Interpreter = struct {
                 const key = try self.readNumber(u16, self.prg_ptr + 1);
                 const jump_address = try self.readNumber(u64, self.prg_ptr + 3);
 
-                if (key <= self.inputs.inputs.len) {
-                    if (self.inputs.inputs[key].down) {
+                if (key <= self.user_inputs.inputs.len) {
+                    if (self.user_inputs.inputs[key].down) {
                         if (self.mem.items[self.prg_ptr] == 0x61 or self.mem.items[self.prg_ptr] == 0x63)
                             try self.stack.push(allocator, self.prg_ptr);
 
@@ -444,8 +443,8 @@ pub const Interpreter = struct {
                 const key = try self.readNumber(u16, self.prg_ptr + 1);
                 const jump_address = try self.readNumber(u64, self.prg_ptr + 3);
 
-                if (key < self.inputs.inputs.len) {
-                    if (!self.inputs.inputs[key].down) {
+                if (key < self.user_inputs.inputs.len) {
+                    if (!self.user_inputs.inputs[key].down) {
                         if (self.mem.items[self.prg_ptr] == 0x65 or self.mem.items[self.prg_ptr] == 0x67)
                             try self.stack.push(allocator, self.prg_ptr);
 
