@@ -39,7 +39,7 @@ pub fn main() !void {
         _ = debug_alloc.deinit();
     };
     var args = args_parser.handleArgs(alloc) catch |err| {
-        if (err == error.HelpAsked) return else return err;
+        if (err == error.HelpAsked or err == error.ErrorPrinted) return else return err;
     };
     errdefer args.deinit(alloc);
 
