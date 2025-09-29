@@ -57,7 +57,7 @@ pub fn main() !void {
     var interpreter = try Interpreter.init(alloc, mem, args, stderr);
     defer interpreter.deinit(alloc);
 
-    if (interpreter._tag != .chip_64) pixel_size = 10;
+    if (interpreter._tag == .chip_64) pixel_size = 1 else pixel_size = 10;
 
     window = try sdl.render.Window.init("interpreter", interpreter.getWidth() * pixel_size, interpreter.getHeight() * pixel_size, .{ .fullsceen = args.fullscreen, .resizable = true });
     defer window.deinit();
