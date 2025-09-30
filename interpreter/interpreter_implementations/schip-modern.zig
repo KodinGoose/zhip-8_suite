@@ -1,7 +1,7 @@
 const std = @import("std");
-const Base = @import("interpreter_base.zig");
+const Base = @import("base.zig");
 
-pub const SchipModernInterpreter = struct {
+pub const Interpreter = struct {
     base: Base.InterpreterBase,
 
     /// low_res: 64x32
@@ -21,56 +21,49 @@ pub const SchipModernInterpreter = struct {
                     0xC0...0xCF => blk: {
                         const N: i32 = @bitCast(@as(u32, next_byte.l));
                         if (next_byte.l == 0) break :blk;
-                        var j = self.base.display_h - 1;
+                        var j = self.base.draw_h - 1;
                         outer_loop: while (j > 0) : (j -= 1) {
-                            for (0..@as(u32, @bitCast(self.base.display_w))) |i| {
-                                const index = @as(i32, @intCast(@as(i64, @bitCast(i)))) + j * self.base.display_w;
-                                if (index - self.base.display_w * N < 0) break :outer_loop;
-                                self.base.display_buffer[@as(u32, @bitCast(index))] = self.base.display_buffer[@as(u32, @bitCast(index - self.base.display_w * N))];
-                                self.base.display_buffer[@as(u32, @bitCast(index - self.base.display_w * N))] = 0;
+                            for (0..@as(u32, @bitCast(self.base.draw_w))) |i| {
+                                const index = @as(i32, @intCast(@as(i64, @bitCast(i)))) + j * self.base.draw_w;
+                                if (index - self.base.draw_w * N < 0) break :outer_loop;
+                                self.base.draw_buf[@as(u32, @bitCast(index))] = self.base.draw_buf[@as(u32, @bitCast(index - self.base.draw_w * N))];
+                                self.base.draw_buf[@as(u32, @bitCast(index - self.base.draw_w * N))] = 0;
                             }
                         }
                         ret_work = .update_screen;
                     },
                     0xE0 => {
-                        for (0..self.base.display_buffer.len) |i| {
-                            self.base.display_buffer[i] = 0;
+                        for (0..self.base.draw_buf.len) |i| {
+                            self.base.draw_buf[i] = 0;
                             ret_work = .update_screen;
                         }
                     },
                     0xEE => blk: {
                         self.base.prg_ptr = self.base.stack.pop() catch |err| {
-                            try self.base.error_handler.handleInterpreterError(
-                                allocator,
-                                "Tried to return from top level function",
-                                @bitCast(cur_byte),
-                                @bitCast(next_byte),
-                                self.base.prg_ptr,
-                                err,
-                            );
+                            try self.base.error_handler.handleInterpreterError("Tried to return from top level function", @bitCast(cur_byte), self.base.prg_ptr, err);
                             break :blk;
                         };
                     },
                     0xFB => {
                         var j: i32 = 0;
-                        while (j < self.base.display_h) : (j += 1) {
-                            var i = self.base.display_w - 1;
+                        while (j < self.base.draw_h) : (j += 1) {
+                            var i = self.base.draw_w - 1;
                             while (i >= 4) : (i -= 1) {
-                                const index = i + j * self.base.display_w;
-                                self.base.display_buffer[@as(u32, @bitCast(index))] = self.base.display_buffer[@as(u32, @bitCast(index - 4))];
-                                self.base.display_buffer[@as(u32, @bitCast(index - 4))] = 0;
+                                const index = i + j * self.base.draw_w;
+                                self.base.draw_buf[@as(u32, @bitCast(index))] = self.base.draw_buf[@as(u32, @bitCast(index - 4))];
+                                self.base.draw_buf[@as(u32, @bitCast(index - 4))] = 0;
                             }
                         }
                         ret_work = .update_screen;
                     },
                     0xFC => {
                         var j: i32 = 0;
-                        while (j < self.base.display_h) : (j += 1) {
+                        while (j < self.base.draw_h) : (j += 1) {
                             var i: i32 = 0;
-                            while (i < self.base.display_w - 4) : (i += 1) {
-                                const index = i + j * self.base.display_w;
-                                self.base.display_buffer[@as(u32, @bitCast(index))] = self.base.display_buffer[@as(u32, @bitCast(index + 4))];
-                                self.base.display_buffer[@as(u32, @bitCast(index + 4))] = 0;
+                            while (i < self.base.draw_w - 4) : (i += 1) {
+                                const index = i + j * self.base.draw_w;
+                                self.base.draw_buf[@as(u32, @bitCast(index))] = self.base.draw_buf[@as(u32, @bitCast(index + 4))];
+                                self.base.draw_buf[@as(u32, @bitCast(index + 4))] = 0;
                             }
                         }
                         ret_work = .update_screen;
@@ -87,14 +80,7 @@ pub const SchipModernInterpreter = struct {
                         ret_work = .resolution_changed;
                     },
                     else => {
-                        try self.base.error_handler.handleInterpreterError(
-                            allocator,
-                            "Unknown instruction",
-                            @bitCast(cur_byte),
-                            @bitCast(next_byte),
-                            self.base.prg_ptr,
-                            error.UnknownInstruction,
-                        );
+                        try self.base.error_handler.handleInterpreterError("Unknown instruction", @bitCast(cur_byte), self.base.prg_ptr, error.UnknownInstruction);
                     },
                 }
             },
@@ -162,14 +148,7 @@ pub const SchipModernInterpreter = struct {
                         self.base.registers[0xF] = shifted_out_bit;
                     },
                     else => {
-                        try self.base.error_handler.handleInterpreterError(
-                            allocator,
-                            "Unknown instruction",
-                            @bitCast(cur_byte),
-                            @bitCast(next_byte),
-                            self.base.prg_ptr,
-                            error.UnknownInstruction,
-                        );
+                        try self.base.error_handler.handleInterpreterError("Unknown instruction", @bitCast(cur_byte), self.base.prg_ptr, error.UnknownInstruction);
                     },
                 }
             },
@@ -186,8 +165,8 @@ pub const SchipModernInterpreter = struct {
                 self.base.registers[cur_byte.l] = @as(u8, @intCast(self.base.rng.next() % 256)) | @as(u8, @bitCast(next_byte));
             },
             0xD => {
-                const x: i32 = @intCast(self.base.registers[cur_byte.l] % @as(u32, @bitCast(self.base.display_w)));
-                const y: i32 = @intCast(self.base.registers[next_byte.u] % @as(u32, @bitCast(self.base.display_h)));
+                const x: i32 = @intCast(self.base.registers[cur_byte.l] % @as(u32, @bitCast(self.base.draw_w)));
+                const y: i32 = @intCast(self.base.registers[next_byte.u] % @as(u32, @bitCast(self.base.draw_h)));
                 const w: i32 = if (self.res == .high_res and next_byte.l == 0) 16 else 8;
                 const h: i32 = if (self.res == .high_res and next_byte.l == 0) 16 else next_byte.l;
                 var wrote_x: i32 = 0;
@@ -197,18 +176,18 @@ pub const SchipModernInterpreter = struct {
                 // Note: According to http://devernay.free.fr/hacks/chip8/C8TECH10.HTM we should be checking for collision
                 self.base.registers[0xF] = 0;
                 while (wrote_y < h) {
-                    const index = x + wrote_x + (wrote_y + y) * self.base.display_w;
+                    const index = x + wrote_x + (wrote_y + y) * self.base.draw_w;
                     blk: {
-                        if (y + wrote_y >= self.base.display_h or x + wrote_x >= self.base.display_w) break :blk;
-                        const pixel_before = self.base.display_buffer[@as(u32, @bitCast(index))];
+                        if (y + wrote_y >= self.base.draw_h or x + wrote_x >= self.base.draw_w) break :blk;
+                        const pixel_before = self.base.draw_buf[@as(u32, @bitCast(index))];
                         const val: u8 = @bitCast(self.base.mem[address]);
                         if (wrote_x < 8) {
-                            self.base.display_buffer[@as(u32, @bitCast(index))] ^= @intCast((val >> @as(u3, @intCast(7 - wrote_x))) & 0b1);
+                            self.base.draw_buf[@as(u32, @bitCast(index))] ^= @intCast((val >> @as(u3, @intCast(7 - wrote_x))) & 0b1);
                         } else {
                             std.debug.assert(self.res == .high_res);
-                            self.base.display_buffer[@as(u32, @bitCast(index))] ^= @intCast((val >> @as(u3, @intCast(15 - wrote_x))) & 0b1);
+                            self.base.draw_buf[@as(u32, @bitCast(index))] ^= @intCast((val >> @as(u3, @intCast(15 - wrote_x))) & 0b1);
                         }
-                        if (pixel_before == 1 and self.base.display_buffer[@as(u32, @bitCast(index))] == 0) {
+                        if (pixel_before == 1 and self.base.draw_buf[@as(u32, @bitCast(index))] == 0) {
                             self.base.registers[0xF] = 1;
                         }
                     }
@@ -231,22 +210,15 @@ pub const SchipModernInterpreter = struct {
             0xE => {
                 switch (@as(u8, @bitCast(next_byte))) {
                     0x9E => blk: {
-                        if (self.base.registers[cur_byte.l] > 0xF) break :blk;
-                        if (self.base.user_inputs.inputs[self.base.registers[cur_byte.l]].down) self.base.prg_ptr += 2;
+                        const scancode = Base.convertInputsToScancode(self.base.registers[cur_byte.l]) catch break :blk;
+                        if (self.base.user_inputs.inputs[@intCast(scancode)].down) self.base.prg_ptr += 2;
                     },
                     0xA1 => blk: {
-                        if (self.base.registers[cur_byte.l] > 0xF) break :blk;
-                        if (!self.base.user_inputs.inputs[self.base.registers[cur_byte.l]].down) self.base.prg_ptr += 2;
+                        const scancode = Base.convertInputsToScancode(self.base.registers[cur_byte.l]) catch break :blk;
+                        if (!self.base.user_inputs.inputs[@intCast(scancode)].down) self.base.prg_ptr += 2;
                     },
                     else => {
-                        try self.base.error_handler.handleInterpreterError(
-                            allocator,
-                            "Unknown instruction",
-                            @bitCast(cur_byte),
-                            @bitCast(next_byte),
-                            self.base.prg_ptr,
-                            error.UnknownInstruction,
-                        );
+                        try self.base.error_handler.handleInterpreterError("Unknown instruction", @bitCast(cur_byte), self.base.prg_ptr, error.UnknownInstruction);
                     },
                 }
             },
@@ -256,10 +228,13 @@ pub const SchipModernInterpreter = struct {
                     0x0A => {
                         // Effectively pause the interpreter
                         self.base.prg_ptr -= 2;
-                        for (self.base.user_inputs.inputs, 0..) |input, value| {
+                        for (self.base.user_inputs.inputs, 0..) |input, scancode| {
                             if (input.released) {
+                                const value = Base.convertScancodeToInputs(@intCast(@as(i64, @intCast(scancode)))) catch |err| {
+                                    if (err == error.UnableToConvert) continue else unreachable;
+                                };
                                 self.base.registers[cur_byte.l] = @intCast(value);
-                                // effectively unpause the interpreter
+                                // Effectively unpause the interpreter
                                 self.base.prg_ptr += 2;
                                 break;
                             }
@@ -309,14 +284,7 @@ pub const SchipModernInterpreter = struct {
                         self.flags_storage[i] = @bitCast(self.base.registers[i]);
                     },
                     else => {
-                        try self.base.error_handler.handleInterpreterError(
-                            allocator,
-                            "Unknown instruction",
-                            @bitCast(cur_byte),
-                            @bitCast(next_byte),
-                            self.base.prg_ptr,
-                            error.UnknownInstruction,
-                        );
+                        try self.base.error_handler.handleInterpreterError("Unknown instruction", @bitCast(cur_byte), self.base.prg_ptr, error.UnknownInstruction);
                     },
                 }
             },
