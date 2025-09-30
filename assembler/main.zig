@@ -77,7 +77,7 @@ pub fn main() !void {
             ErrorHandler.printReturnError(stderr, err, "Couldn't read from the input file") catch return;
         };
         defer allocator.free(file_contents);
-        const binary = assembler.assemble(args.build, allocator, stderr, args.binary_start_index, file_contents) catch |err| {
+        const binary = assembler.assemble(args.build, allocator, stderr, args, file_contents) catch |err| {
             if (err == error.ErrorPrinted) return;
             ErrorHandler.printReturnError(stderr, err, "Couldn't translate code into binary") catch return;
         };
