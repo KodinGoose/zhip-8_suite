@@ -4,7 +4,7 @@ const Args = @import("args.zig");
 // const Schip10 = @import("actual_assemblers/schip1_0.zig");
 // const Schip11 = @import("actual_assemblers/schip1_1.zig");
 // const SchipModern = @import("actual_assemblers/schip_modern.zig");
-const Chip64 = @import("actual_assemblers/chip_64.zig");
+const Chip64 = @import("assembler_implementations/chip_64.zig");
 
 /// Returns assembled code
 pub fn assemble(build_target: Args.Build, allocator: std.mem.Allocator, error_writer: *std.Io.Writer, binary_start_index: ?u64, code: []u8) ![]u8 {
