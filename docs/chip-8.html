@@ -35,22 +35,22 @@ You can write comments with the following syntax:
 <div class = "code">#This is a comment
 </div>
 or after an opcode:
-<div class = "code">exe 0xE0 # This is the same as cls  
+<div class = "code">execute 0xE0 # This is the same as "clear"
 </div><br>
 The language supports labels with the following syntax:<br>
 [label_name]: This is for declaring a label, this can be on it's own line or before an opcode<br>
 :[label_name] This is how to specify which label to jump to.<br>
 Labels can be used as an arguemnt for any opcode that asks for an address(Including the chip-8 variant of the "rjp" opcode)<br>
 Example:
-<div class = "code">clear: clr
+<div class = "code">clear: clear
 # An example of a "function"
 # The only restriction on a label is that it can only consist of letters
 # It can have the same name as an opcode
-ext:
-  ext
+exit:
+  exit
   ret
-jmp :clear
-cal :ext
+jump :clear
+call :exit
 </div>
 <br>
 The language supports decimal, hexadecimal (0xN), octal (0oN) and binary (0bN) format for numbers.<br>
