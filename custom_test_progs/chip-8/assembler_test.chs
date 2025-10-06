@@ -2,11 +2,13 @@ execute 0xEEE
 clear
 ret: ret
 exit
-jump :0xEEE
+jump jump_to: :0xEEE
 jump :ret
+jump :jump_to
+jump :seq_arg
 call :0xEEE
 call :ret
-seq r13 0xEE
+seq r13 seq_arg: 0xEE
 sne r13 0xEE
 seq r13 r13
 set r13 0xEE

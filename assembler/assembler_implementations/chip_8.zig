@@ -35,10 +35,10 @@ pub fn assembleInstructions(
         defer allocator.free(assembly_opcode);
 
         if (Base.eql(assembly_opcode, "execute")) {
-            var int = Base.getInt(allocator, error_writer, u12, u16, &splt_line, line_number.*, AddressT, binary_index.*, @truncate(binary_index.*), aliases, alias_calls, .strict, .dont_allow_alias, .big) catch |err| {
+            var int = Base.getInt(allocator, error_writer, u12, u16, &splt_line, line_number.*, AddressT, binary_index.*, aliases, alias_calls, .strict, .dont_allow, .big) catch |err| {
                 if (err == error.ErrorPrinted) continue :line_loop else return err;
             } orelse unreachable;
-            int &= 0x0FFF;
+            int &= std.mem.nativeToBig(u16, 0x0FFF);
             try binary.appendSlice(allocator, &@as([2]u8, @bitCast(int)));
             binary_index.* += 2;
         } else if (Base.eql(assembly_opcode, "clear")) {
@@ -57,19 +57,19 @@ pub fn assembleInstructions(
             try binary.append(allocator, 0xFD);
             binary_index.* += 1;
         } else if (Base.eql(assembly_opcode, "jump")) {
-            var address = Base.getAddress(allocator, error_writer, AddressT, u16, &splt_line, line_number.*, AddressT, binary_index.*, @truncate(binary_index.*), aliases, alias_calls) catch |err| {
+            var address = Base.getAddress(allocator, error_writer, u16, &splt_line, line_number.*, AddressT, binary_index.*, aliases, alias_calls) catch |err| {
                 if (err == error.ErrorPrinted) continue :line_loop else return err;
             };
-            address &= 0x0FFF;
-            address |= 0x1000;
+            address &= std.mem.nativeToBig(u16, 0x0FFF);
+            address |= std.mem.nativeToBig(u16, 0x1000);
             try binary.appendSlice(allocator, &@as([2]u8, @bitCast(address)));
             binary_index.* += 2;
         } else if (Base.eql(assembly_opcode, "call")) {
-            var address = Base.getAddress(allocator, error_writer, AddressT, u16, &splt_line, line_number.*, AddressT, binary_index.*, @truncate(binary_index.*), aliases, alias_calls) catch |err| {
+            var address = Base.getAddress(allocator, error_writer, u16, &splt_line, line_number.*, AddressT, binary_index.*, aliases, alias_calls) catch |err| {
                 if (err == error.ErrorPrinted) continue :line_loop else return err;
             };
-            address &= 0x0FFF;
-            address |= 0x2000;
+            address &= std.mem.nativeToBig(u16, 0x0FFF);
+            address |= std.mem.nativeToBig(u16, 0x2000);
             try binary.appendSlice(allocator, &@as([2]u8, @bitCast(address)));
             binary_index.* += 2;
         } else {

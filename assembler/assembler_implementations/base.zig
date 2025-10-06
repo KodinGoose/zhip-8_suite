@@ -145,9 +145,9 @@ pub fn getStrPeek(
     }
 }
 
-const AllowAlias = enum(u1) {
-    allow_alias,
-    dont_allow_alias,
+const AllowAliasAsNumber = enum(u1) {
+    allow,
+    dont_allow,
 };
 
 /// Returns null if allowed == .optional and arg is missing
@@ -158,28 +158,27 @@ pub fn getInt(
     allocator: std.mem.Allocator,
     error_writer: *std.Io.Writer,
     T: type,
-    /// Returned integer is casted to this number
+    /// Returned integer is casted to this type
     /// Bit size must be >= to bit size of T
     ReturnT: type,
     splt_line: *std.mem.SplitIterator(u8, .scalar),
     line_number: usize,
     AddressT: type,
     real_binary_index: usize,
-    binary_index: AddressT,
     aliases: *std.StringHashMapUnmanaged(AddressT),
     alias_calls: *std.ArrayListUnmanaged(AliasCall),
     allowed: Allowed,
-    allow_alias: AllowAlias,
+    allow_alias_as_number: AllowAliasAsNumber,
     /// What endiannes the returned integer should have
     desired_endianness: std.builtin.Endian,
 ) !?ReturnT {
-    try checkForAliases(allocator, error_writer, splt_line, line_number, AddressT, aliases, binary_index);
+    try checkForAliases(allocator, error_writer, splt_line, line_number, AddressT, aliases, @truncate(real_binary_index));
 
     const str = (try getStrPeek(allocator, error_writer, splt_line, line_number, allowed)) orelse return null;
     errdefer allocator.free(str);
 
     if (str[0] == '*') {
-        if (allow_alias == .dont_allow_alias) {
+        if (allow_alias_as_number == .dont_allow) {
             return ErrorHandler.printAssembleError(error_writer, "Passing aliases as numbers is not allowed for this argument of this instruction", line_number);
         }
 
@@ -229,19 +228,18 @@ pub fn getBigInt(
     line_number: usize,
     AddressT: type,
     real_binary_index: usize,
-    binary_index: AddressT,
     aliases: *std.StringHashMapUnmanaged(AddressT),
     alias_calls: *std.ArrayListUnmanaged(AliasCall),
     allowed: Allowed,
-    allow_alias: AllowAlias,
+    allow_alias_as_number: AllowAliasAsNumber,
 ) !?BigInt {
-    try checkForAliases(allocator, error_writer, splt_line, line_number, AddressT, aliases, binary_index);
+    try checkForAliases(allocator, error_writer, splt_line, line_number, AddressT, aliases, @truncate(real_binary_index));
 
     const str = (try getStrPeek(allocator, error_writer, splt_line, line_number, allowed)) orelse return null;
     errdefer allocator.free(str);
 
     if (str[0] == '*') {
-        if (allow_alias == .dont_allow_alias) {
+        if (allow_alias_as_number == .dont_allow) {
             return ErrorHandler.printAssembleError(error_writer, "Passing aliases as numbers is not allowed for this argument of this instruction", line_number);
         }
         if (byte_length != 8) {
@@ -286,8 +284,7 @@ pub fn getBigInt(
 pub fn getAddress(
     allocator: std.mem.Allocator,
     error_writer: *std.Io.Writer,
-    T: type,
-    /// Returned integer is casted to this number
+    /// Returned address is casted to this type
     /// Bit size must be >= to bit size of T
     ReturnT: type,
     splt_line: *std.mem.SplitIterator(u8, .scalar),
@@ -295,17 +292,16 @@ pub fn getAddress(
     AddressT: type,
     /// Should be the address/index where the address is stored
     real_binary_index: usize,
-    binary_index: AddressT,
     aliases: *std.StringHashMapUnmanaged(AddressT),
     alias_calls: *std.ArrayListUnmanaged(AliasCall),
 ) !ReturnT {
-    try checkForAliases(allocator, error_writer, splt_line, line_number, AddressT, aliases, binary_index);
+    try checkForAliases(allocator, error_writer, splt_line, line_number, AddressT, aliases, @truncate(real_binary_index));
 
     const str = (try getStrPeek(allocator, error_writer, splt_line, line_number, .strict)).?;
     errdefer allocator.free(str);
 
     if (str[0] == ':' and str.len > 1) {
-        const int = std.mem.nativeToBig(ReturnT, @intCast(String.intFromString(T, str[1..]) catch {
+        const int = std.mem.nativeToBig(ReturnT, @intCast(String.intFromString(AddressT, str[1..]) catch {
             if (!String.containsLettersOnly(str[1..2]) or !String.containsPrintableAsciiOnly(str[2..])) {
                 return ErrorHandler.printAssembleError(error_writer, "Invalid alias or address", line_number);
             }
