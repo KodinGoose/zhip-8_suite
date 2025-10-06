@@ -32,6 +32,14 @@ test "reverseArray" {
     try std.testing.expect(std.mem.eql(u8, string4, ""));
 }
 
+/// Returned array is reversed
+pub fn reverseArrayAlloc(allocator: std.mem.Allocator, T: type, array: []const T) ![]u8 {
+    const new_array = try allocator.dupe(T, array);
+    errdefer allocator.free(new_array);
+    reverseArray(T, new_array);
+    return new_array;
+}
+
 pub fn concat(allocator: std.mem.Allocator, T: type, a: []const T, b: []const T) ![]u8 {
     var new_array = try allocator.alloc(T, a.len + b.len);
     @memcpy(new_array[0..a.len], a);

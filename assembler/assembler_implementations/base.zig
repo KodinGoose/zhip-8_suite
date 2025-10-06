@@ -8,12 +8,14 @@ const String = @import("shared").String;
 const ErrorHandler = @import("../error.zig");
 const Args = @import("../args.zig").Args;
 
+const cpu_endianness = builtin.cpu.arch.endian();
+
 pub const AliasCall = struct {
     /// Name of the alias
     /// Assumed to be allocated
     string: []u8,
-    /// The address to call
-    address: u64,
+    /// The actual binary index where the call is made from
+    from: usize,
     at_line: usize,
     treat_as_number: bool = false,
 
@@ -23,13 +25,13 @@ pub const AliasCall = struct {
 };
 
 /// Returns assembled code
-pub fn assemble(allocator: std.mem.Allocator, error_writer: *std.Io.Writer, args: Args, code: []u8, instructionAssembler: fn (
+pub fn assemble(allocator: std.mem.Allocator, error_writer: *std.Io.Writer, args: Args, code: []u8, AddressT: type, instructionAssembler: fn (
     allocator: std.mem.Allocator,
     error_writer: *std.Io.Writer,
     splt_code: *std.mem.SplitIterator(u8, .scalar),
     line_number: *usize,
     binary_index: *usize,
-    aliases: *std.StringHashMapUnmanaged(u64),
+    aliases: *std.StringHashMapUnmanaged(AddressT),
     alias_calls: *std.ArrayListUnmanaged(AliasCall),
     binary: *std.ArrayListUnmanaged(u8),
 ) anyerror!void) ![]u8 {
@@ -42,7 +44,7 @@ pub fn assemble(allocator: std.mem.Allocator, error_writer: *std.Io.Writer, args
     var binary = try std.ArrayListUnmanaged(u8).initCapacity(allocator, @max(1024 * 256, binary_index));
     try binary.resize(allocator, binary_index);
     errdefer binary.deinit(allocator);
-    var aliases = std.StringHashMapUnmanaged(u64){};
+    var aliases = std.StringHashMapUnmanaged(AddressT){};
     defer aliases.deinit(allocator);
     defer {
         var alias_iter = aliases.keyIterator();
@@ -67,8 +69,11 @@ pub fn assemble(allocator: std.mem.Allocator, error_writer: *std.Io.Writer, args
     var line_number: usize = 0;
     try instructionAssembler(allocator, error_writer, &splt_code, &line_number, &binary_index, &aliases, &alias_calls, &binary);
 
-    try matchAliases(error_writer, binary.items, aliases, alias_calls.items);
+    try matchAliases(allocator, error_writer, binary.items, AddressT, aliases, alias_calls.items);
 
+    if (binary.items.len >= std.math.maxInt(AddressT)) {
+        ErrorHandler.printAssembleWarning(error_writer, "Binary size larger than maximum indexable range");
+    }
     binary.shrinkAndFree(allocator, binary.items.len);
     return binary.items;
 }
@@ -148,21 +153,27 @@ const AllowAlias = enum(u1) {
 /// Returns null if allowed == .optional and arg is missing
 /// Returns error.Incorrect if allowed == .incorrect and arg is not a number
 /// Prints error on other errors
+/// return_T's bitsize must be a multiple of 8
 pub fn getInt(
     allocator: std.mem.Allocator,
     error_writer: *std.Io.Writer,
     T: type,
+    /// Returned integer is casted to this number
+    /// Bit size must be >= to bit size of T
+    ReturnT: type,
     splt_line: *std.mem.SplitIterator(u8, .scalar),
     line_number: usize,
-    binary_index: usize,
-    aliases: *std.StringHashMapUnmanaged(u64),
+    AddressT: type,
+    real_binary_index: usize,
+    binary_index: AddressT,
+    aliases: *std.StringHashMapUnmanaged(AddressT),
     alias_calls: *std.ArrayListUnmanaged(AliasCall),
     allowed: Allowed,
     allow_alias: AllowAlias,
     /// What endiannes the returned integer should have
     desired_endianness: std.builtin.Endian,
-) !?T {
-    try checkForAliases(allocator, error_writer, splt_line, line_number, aliases, binary_index);
+) !?ReturnT {
+    try checkForAliases(allocator, error_writer, splt_line, line_number, AddressT, aliases, binary_index);
 
     const str = (try getStrPeek(allocator, error_writer, splt_line, line_number, allowed)) orelse return null;
     errdefer allocator.free(str);
@@ -183,7 +194,7 @@ pub fn getInt(
         }
         try alias_calls.append(allocator, .{
             .string = try allocator.realloc(str, str.len - 1),
-            .address = binary_index,
+            .from = real_binary_index,
             .at_line = line_number,
             .treat_as_number = true,
         });
@@ -204,7 +215,7 @@ pub fn getInt(
 
     _ = splt_line.next();
     allocator.free(str);
-    return std.mem.nativeTo(T, int, desired_endianness);
+    return std.mem.nativeTo(ReturnT, @intCast(int), desired_endianness);
 }
 
 /// Returns null if allowed == .optional or allowed == .both and arg is missing
@@ -216,13 +227,15 @@ pub fn getBigInt(
     byte_length: usize,
     splt_line: *std.mem.SplitIterator(u8, .scalar),
     line_number: usize,
-    binary_index: usize,
-    aliases: *std.StringHashMapUnmanaged(u64),
+    AddressT: type,
+    real_binary_index: usize,
+    binary_index: AddressT,
+    aliases: *std.StringHashMapUnmanaged(AddressT),
     alias_calls: *std.ArrayListUnmanaged(AliasCall),
     allowed: Allowed,
     allow_alias: AllowAlias,
 ) !?BigInt {
-    try checkForAliases(allocator, error_writer, splt_line, line_number, aliases, binary_index);
+    try checkForAliases(allocator, error_writer, splt_line, line_number, AddressT, aliases, binary_index);
 
     const str = (try getStrPeek(allocator, error_writer, splt_line, line_number, allowed)) orelse return null;
     errdefer allocator.free(str);
@@ -242,7 +255,7 @@ pub fn getBigInt(
         }
         try alias_calls.append(allocator, .{
             .string = try allocator.realloc(str, str.len - 1),
-            .address = binary_index,
+            .from = real_binary_index,
             .at_line = line_number,
             .treat_as_number = true,
         });
@@ -269,23 +282,30 @@ pub fn getBigInt(
 
 /// Returns zero if alias is found
 /// Actual address value is filled in later
+/// return_T's bitsize must be a multiple of 8
 pub fn getAddress(
     allocator: std.mem.Allocator,
     error_writer: *std.Io.Writer,
+    T: type,
+    /// Returned integer is casted to this number
+    /// Bit size must be >= to bit size of T
+    ReturnT: type,
     splt_line: *std.mem.SplitIterator(u8, .scalar),
     line_number: usize,
+    AddressT: type,
     /// Should be the address/index where the address is stored
-    binary_index: usize,
-    aliases: *std.StringHashMapUnmanaged(u64),
+    real_binary_index: usize,
+    binary_index: AddressT,
+    aliases: *std.StringHashMapUnmanaged(AddressT),
     alias_calls: *std.ArrayListUnmanaged(AliasCall),
-) !u64 {
-    try checkForAliases(allocator, error_writer, splt_line, line_number, aliases, binary_index);
+) !ReturnT {
+    try checkForAliases(allocator, error_writer, splt_line, line_number, AddressT, aliases, binary_index);
 
     const str = (try getStrPeek(allocator, error_writer, splt_line, line_number, .strict)).?;
     errdefer allocator.free(str);
 
     if (str[0] == ':' and str.len > 1) {
-        const int = std.mem.nativeToBig(u64, String.intFromString(u64, str[1..]) catch {
+        const int = std.mem.nativeToBig(ReturnT, @intCast(String.intFromString(T, str[1..]) catch {
             if (!String.containsLettersOnly(str[1..2]) or !String.containsPrintableAsciiOnly(str[2..])) {
                 return ErrorHandler.printAssembleError(error_writer, "Invalid alias or address", line_number);
             }
@@ -294,13 +314,13 @@ pub fn getAddress(
             }
             try alias_calls.append(allocator, .{
                 .string = try allocator.realloc(str, str.len - 1),
-                .address = binary_index,
+                .from = real_binary_index,
                 .at_line = line_number,
             });
 
             _ = splt_line.next();
             return 0;
-        });
+        }));
 
         allocator.free(str);
         _ = splt_line.next();
@@ -329,8 +349,9 @@ pub fn checkForAliases(
     error_writer: *std.Io.Writer,
     splt_line: *std.mem.SplitIterator(u8, .scalar),
     line_number: usize,
-    aliases: *std.StringHashMapUnmanaged(u64),
-    binary_index: usize,
+    AddressT: type,
+    aliases: *std.StringHashMapUnmanaged(AddressT),
+    binary_index: AddressT,
 ) !void {
 
     // Check for alias
@@ -369,14 +390,39 @@ pub fn eql(a: []const u8, b: []const u8) bool {
     return std.mem.eql(u8, a, b);
 }
 
-fn matchAliases(error_writer: *std.Io.Writer, binary: []u8, aliases: std.StringHashMapUnmanaged(u64), alias_calls: []const AliasCall) !void {
+fn matchAliases(allocator: std.mem.Allocator, error_writer: *std.Io.Writer, binary: []u8, AddressT: type, aliases: std.StringHashMapUnmanaged(AddressT), alias_calls: []const AliasCall) !void {
     for (alias_calls) |*alias_call| {
         const ret = aliases.getEntry(alias_call.string);
         if (ret) |val| {
-            @memcpy(
-                binary[alias_call.address .. alias_call.address + 8],
-                &@as([8]u8, @bitCast(std.mem.nativeToBig(@TypeOf(val.value_ptr.*), val.value_ptr.*))),
-            );
+            if (@bitSizeOf(AddressT) % 8 == 0) {
+                @memcpy(
+                    binary[alias_call.from .. alias_call.from + @bitSizeOf(AddressT) / 8],
+                    &@as([@bitSizeOf(AddressT) / 8]u8, @bitCast(std.mem.nativeToBig(@TypeOf(val.value_ptr.*), val.value_ptr.*))),
+                );
+            } else {
+                var tmp = binary[alias_call.from];
+                var val_bytes = std.mem.asBytes(val.value_ptr);
+                if (cpu_endianness == .big) {
+                    @memcpy(
+                        binary[alias_call.from .. alias_call.from + @bitSizeOf(AddressT) / 8 + 1],
+                        val_bytes[0 .. @bitSizeOf(AddressT) / 8 + 1],
+                    );
+                } else {
+                    var reversed_val_bytes = try Array.reverseArrayAlloc(allocator, u8, val_bytes);
+                    defer allocator.free(reversed_val_bytes);
+                    @memcpy(
+                        binary[alias_call.from .. alias_call.from + @bitSizeOf(AddressT) / 8 + 1],
+                        reversed_val_bytes[val_bytes.len - (@bitSizeOf(AddressT) / 8 + 1) ..],
+                    );
+                }
+                // @memcpy(
+                //     binary[alias_call.address .. alias_call.address + @bitSizeOf(AddressT) / 8 + 1],
+                //     &@as([@bitSizeOf(AddressT) / 8 + 1]u8, @bitCast(std.mem.nativeToBig(@TypeOf(val.value_ptr.*), val.value_ptr.*))),
+                // );
+                tmp &= 0xF0;
+                binary[alias_call.from] &= 0x0F;
+                binary[alias_call.from] |= tmp;
+            }
         } else {
             ErrorHandler.printAssembleError(error_writer, "Non existant alias", alias_call.at_line) catch {};
         }

@@ -11,3 +11,7 @@ pub fn printAssembleError(writer: *std.Io.Writer, message: []const u8, line_numb
     writer.print("Error at line {d}: {s}\n", .{ line_number, message }) catch {};
     return error.ErrorPrinted;
 }
+
+pub fn printAssembleWarning(writer: *std.Io.Writer, message: []const u8) void {
+    writer.print("Warning: {s}\n", .{message}) catch {};
+}
